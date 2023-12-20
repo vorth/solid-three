@@ -3,7 +3,7 @@ import { Canvas, T } from '@solid-three/fiber'
 import { For, createSignal } from 'solid-js'
 import Tests from './Tests'
 
-import { OrbitControls } from '@solid-three/drei'
+import { OrbitControls, PerspectiveCamera } from '@solid-three/drei'
 import { Dynamic } from 'solid-js/web'
 import styles from './App.module.css'
 
@@ -22,10 +22,12 @@ const Setup = (props) => {
       shadows>
       {props.children}
       <OrbitControls />
-      <T.AmbientLight color="white" intensity={0.2} />
-      <T.Object3D ref={centerObject} visible={false} />
-      <T.DirectionalLight target={centerObject} position={[1,1.62,0]} intensity={1} color="red" />
-      <T.DirectionalLight target={centerObject} position={[1,-1.62,0]} intensity={1} color="green" />
+      <PerspectiveCamera makeDefault={true} position={[3, 3, 3]}>
+        {/* <T.AmbientLight color="white" intensity={0.5} /> */}
+        <T.Object3D ref={centerObject} visible={false} />
+        <T.DirectionalLight target={centerObject} position={[1,1,1]} intensity={1.7} color="#FF0000" />
+        <T.DirectionalLight target={centerObject} position={[-1,-1,-1]} intensity={1.7} color="#00FF00" />
+      </PerspectiveCamera>
       {/* <T.SpotLight position={[0, 5, 10]} intensity={1} /> */}
     </Canvas>
   )
