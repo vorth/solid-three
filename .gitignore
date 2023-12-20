@@ -5,3 +5,9 @@ node_modules
 packed/
 
 .pnpm-store/
+
+apps/playground/.yalc/
+
+apps/playground/yalc.lock
+
+packages/drei

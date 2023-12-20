@@ -8,6 +8,9 @@ import { Dynamic } from 'solid-js/web'
 import styles from './App.module.css'
 
 const Setup = (props) => {
+
+  let centerObject;
+
   return (
     <Canvas
       camera={{
@@ -19,7 +22,11 @@ const Setup = (props) => {
       shadows>
       {props.children}
       <OrbitControls />
-      <T.SpotLight position={[0, 5, 10]} intensity={1} />
+      <T.AmbientLight color="white" intensity={0.2} />
+      <T.Object3D ref={centerObject} visible={false} />
+      <T.DirectionalLight target={centerObject} position={[1,1.62,0]} intensity={1} color="red" />
+      <T.DirectionalLight target={centerObject} position={[1,-1.62,0]} intensity={1} color="green" />
+      {/* <T.SpotLight position={[0, 5, 10]} intensity={1} /> */}
     </Canvas>
   )
 }

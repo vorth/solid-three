@@ -227,7 +227,7 @@ export default {
           rotation={[rotation, rotation, 0]}
           ref={mesh}
           position={props.position}
-          color={hovered() ? 'green' : 'red'}>
+          color={hovered() ? 'green' : 'white'}>
           {props.children}
         </Box>
       )
@@ -265,7 +265,7 @@ export default {
               {(_, y) => (
                 <For each={new Array(amount())}>
                   {(_, z) => (
-                    <Box position={[x() * 2 - amount() / 2, y() * 2 - amount() / 2, z() * 2 - amount() / 2]} />
+                    <Box position={[x() * 2 - amount() / 2, y() * 2 - amount() / 2, z() * 2 - amount() / 2]} color='white' />
                   )}
                 </For>
               )}
