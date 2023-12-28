@@ -318,7 +318,7 @@ export function createRoot<TCanvas extends Canvas>(canvas: TCanvas): ReconcilerR
       // Check frameloop
       if (store.frameloop !== options.frameloop) store.setFrameloop(options.frameloop)
       // Check pointer missed
-      if (!store.onPointerMissed) store.set('onPointerMissed', options.onPointerMissed)
+      if (!store.onPointerMissed) store.set( { 'onPointerMissed': options.onPointerMissed } )
       // Check performance
       if (options.performance && !is.equ(options.performance, store.performance, shallowLoose))
         store.set('performance', options.performance)

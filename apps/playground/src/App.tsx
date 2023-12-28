@@ -24,7 +24,7 @@ const Setup = (props) => {
       <OrbitControls />
       <PerspectiveCamera makeDefault={true} position={[3, 3, 3]}>
         {/* <T.AmbientLight color="white" intensity={0.5} /> */}
-        <T.Object3D ref={centerObject} visible={false} />
+        <T.Mesh ref={centerObject} visible={false} />
         <T.DirectionalLight target={centerObject} position={[1,1,1]} intensity={1.7} color="#FF0000" />
         <T.DirectionalLight target={centerObject} position={[-1,-1,-1]} intensity={1.7} color="#00FF00" />
       </PerspectiveCamera>
