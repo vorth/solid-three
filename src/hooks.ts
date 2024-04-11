@@ -1,161 +1,67 @@
-import * as THREE from "three";
-import { StateSelector, EqualityChecker } from "zustand/vanilla";
-import { ThreeContext, RootState, RenderCallback } from "./core/store";
-import { buildGraph, ObjectMap, is } from "./core/utils";
-import {
-  createComputed,
-  createEffect,
-  createMemo,
-  createSignal,
-  onCleanup,
-  untrack,
-  useContext,
-} from "solid-js";
-
-export interface Loader<T> extends THREE.Loader {
-  load(
-    url: string,
-    onLoad?: (result: T) => void,
-    onProgress?: (event: ProgressEvent) => void,
-    onError?: (event: ErrorEvent) => void
-  ): unknown;
-}
-
-export type Extensions = (loader: THREE.Loader) => void;
-export type LoaderResult<T> = T extends any[] ? Loader<T[number]> : Loader<T>;
-export type ConditionalType<Child, Parent, Truthy, Falsy> = Child extends Parent
-  ? Truthy
-  : Falsy;
-export type BranchingReturn<T, Parent, Coerced> = ConditionalType<
-  T,
-  Parent,
-  Coerced,
-  T
->;
-
-export function useStore() {
-  const store = useContext(ThreeContext);
-  if (!store) throw `R3F hooks can only be used within the Canvas component!`;
-  return store;
-}
-
-export function useThree<T = RootState, U = T>(
-  selector: StateSelector<RootState, U> = (state) => state as unknown as U,
-  equalityFn?: EqualityChecker<U>
-) {
-  let store = useStore();
-  const [signal, setSignal] = createSignal<U>(selector(store.getState()));
-
-  createComputed(() => {
-    let cleanup = useStore().subscribe<U>(
-      // @ts-expect-error
-      selector,
-      (v) => {
-        // @ts-expect-error
-        setSignal(() => v);
-      },
-      equalityFn
-    );
-
-    onCleanup(cleanup);
-  });
-
-  return signal;
-}
+import { Accessor, createContext, createResource, useContext } from "solid-js";
+import { ThreeContext } from "./types";
 
 /**
- * Creates a signal that is updated when the given effect is run.
+ * Custom hook to access all necessary Three.js objects needed to manage a 3D scene.
+ * This hook must be used within a component that is a descendant of the `<Canvas/>` component.
  *
- * @example
- * ```ts
- * const [count, setCount] = useSignal(0);
- * useFrame(() => {
- *  setCount(count + 1);
- * });
- * ```
- *
- * @param callback - a function to run on every frame render
- * @param renderPriority -  priority of the callback decides its order in the frameloop, higher is earlier
+ * @template T The expected return type after applying the callback to the context.
+ * @param {Function} [callback] - Optional callback function that processes and returns a part of the context.
+ * @returns {ThreeContext | Accessor<T>} Returns the ThreeContext directly, or an accessor if a callback is provided.
+ * @throws {Error} Throws an error if used outside of the Canvas component context.
  */
-export function useFrame(
-  callback: RenderCallback,
-  renderPriority: number = 0
-): void {
-  const subscribe = useStore().getState().internal.subscribe;
-  let cleanup = subscribe(
-    (t, delta) => untrack(() => callback(t, delta)),
-    renderPriority
+export function useThree(): ThreeContext;
+export function useThree<T>(callback: (value: ThreeContext) => T): Accessor<T>;
+export function useThree(callback?: (value: ThreeContext) => any) {
+  const store = useContext(threeContext);
+  if (!store) {
+    throw new Error("S3F: Hooks can only be used within the Canvas component!");
+  }
+  if (callback) return () => callback(store);
+  return store;
+}
+export const threeContext = createContext<ThreeContext>(null!);
+
+/**
+ * Hook to register a callback that will be executed on each animation frame within the `<Canvas/>` component.
+ * This hook must be used within a component that is a descendant of the `<Canvas/>` component.
+ *
+ * @param {() => void} callback - The callback function to be executed on each frame.
+ * @throws {Error} Throws an error if used outside of the Canvas component context.
+ */
+export const useFrame = (callback: () => void) => {
+  const addFrameListener = useContext(frameContext);
+  if (!addFrameListener) {
+    throw new Error("S3F: Hooks can only be used within the Canvas component!");
+  }
+  addFrameListener(callback);
+};
+export const frameContext = createContext<(callback: () => void) => void>();
+
+/**
+ * Hook to create and manage a resource using a Three.js loader. It ensures that the loader is
+ * reused if it has been instantiated before, and manages the resource lifecycle automatically.
+ *
+ * @template TResult The type of the resolved data when the loader completes loading.
+ * @template TArg The argument type expected by the loader function.
+ * @param {new () => { load: (value: TArg, onLoad: (value: TResult) => void) => void }} Constructor - The loader class constructor.
+ * @param {Accessor<TArg>} args - The arguments to be passed to the loader function, wrapped in an accessor to enable reactivity.
+ * @returns {Accessor<TResult>} An accessor containing the loaded resource, re-evaluating when inputs change.
+ */
+export const useLoader = <TResult, TArg>(
+  Constructor: new () => { load: (value: TArg, onLoad: (value: TResult) => void) => void },
+  args: Accessor<TArg>,
+) => {
+  let loader = LOADER_CACHE.get(Constructor);
+  if (!loader) {
+    loader = new Constructor();
+    LOADER_CACHE.set(Constructor, loader);
+  }
+
+  const [resource] = createResource(
+    args,
+    args => new Promise<TResult>((resolve, reject) => loader.load(args, resolve, null, reject)),
   );
-
-  onCleanup(cleanup);
-}
-
-export function useGraph(object: THREE.Object3D) {
-  return createMemo(() => buildGraph(object));
-}
-
-export function loadingFn<T>(
-  extensions?: Extensions,
-  onProgress?: (event: ProgressEvent<EventTarget>) => void
-) {
-  return function (Proto: new () => LoaderResult<T>, ...input: string[]) {
-    // Construct new loader and run extensions
-    const loader = new Proto();
-    if (extensions) extensions(loader);
-    // Go through the urls and load them
-    return Promise.all(
-      input.map(
-        (input) =>
-          new Promise((res, reject) =>
-            loader.load(
-              input,
-              (data: any) => {
-                if (data.scene) Object.assign(data, buildGraph(data.scene));
-                res(data);
-              },
-              onProgress,
-              (error) => reject(`Could not load ${input}: ${error.message}`)
-            )
-          )
-      )
-    );
-  };
-}
-
-// export function useLoader<T, U extends string | string[]>(
-//   Proto: new () => LoaderResult<T>,
-//   input: U,
-//   extensions?: Extensions,
-//   onProgress?: (event: ProgressEvent<EventTarget>) => void
-// ): U extends any[]
-//   ? BranchingReturn<T, GLTF, GLTF & ObjectMap>[]
-//   : BranchingReturn<T, GLTF, GLTF & ObjectMap> {
-//   // Use suspense to load async assets
-//   const keys = (Array.isArray(input) ? input : [input]) as string[];
-//   const results = suspend(
-//     loadingFn<T>(extensions, onProgress),
-//     [Proto, ...keys],
-//     { equal: is.equ }
-//   );
-//   // Return the object/s
-//   return (Array.isArray(input) ? results : results[0]) as U extends any[]
-//     ? BranchingReturn<T, GLTF, GLTF & ObjectMap>[]
-//     : BranchingReturn<T, GLTF, GLTF & ObjectMap>;
-// }
-
-// useLoader.preload = function <T, U extends string | string[]>(
-//   Proto: new () => LoaderResult<T>,
-//   input: U,
-//   extensions?: Extensions
-// ) {
-//   const keys = (Array.isArray(input) ? input : [input]) as string[];
-//   return preload(loadingFn<T>(extensions), [Proto, ...keys]);
-// };
-
-// useLoader.clear = function <T, U extends string | string[]>(
-//   Proto: new () => LoaderResult<T>,
-//   input: U
-// ) {
-//   const keys = (Array.isArray(input) ? input : [input]) as string[];
-//   return clear([Proto, ...keys]);
-// };
+  return resource;
+};
+const LOADER_CACHE = new Map();
