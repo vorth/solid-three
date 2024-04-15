@@ -1,4 +1,4 @@
-import { Component, ParentProps } from "solid-js";
+import { Component, ParentProps, Setter } from "solid-js";
 import * as THREE from "three";
 import { OrthographicCamera, PerspectiveCamera } from "three";
 import { $S3C } from "./augment";
@@ -10,9 +10,11 @@ import { $S3C } from "./augment";
 /**********************************************************************************/
 
 export type ThreeContext = {
+  camera: AugmentedElement<CameraType>;
   canvas: HTMLCanvasElement;
   gl: THREE.WebGLRenderer;
-  camera: AugmentedElement<CameraType>;
+  pointer: THREE.Vector2;
+  setPointer: Setter<THREE.Vector2>;
   raycaster: THREE.Raycaster;
   scene: THREE.Scene;
 };
@@ -25,6 +27,7 @@ export type Size = {
 };
 
 export type ConstructorRepresentation = new (...args: any[]) => any;
+type ExtractConstructors<T> = T extends ConstructorRepresentation ? T : never;
 
 /**********************************************************************************/
 /*                                                                                */
@@ -32,13 +35,6 @@ export type ConstructorRepresentation = new (...args: any[]) => any;
 /*                                                                                */
 /**********************************************************************************/
 
-export type CameraOptions = {
-  fov: number;
-  near: number;
-  far: number;
-  position: THREE.Vector3;
-  rotation: THREE.Vector3;
-};
 export type CameraType = PerspectiveCamera | OrthographicCamera;
 
 /**********************************************************************************/
@@ -47,21 +43,27 @@ export type CameraType = PerspectiveCamera | OrthographicCamera;
 /*                                                                                */
 /**********************************************************************************/
 
+export type ThreeEvent<TEvent extends WheelEvent | MouseEvent> = {
+  nativeEvent: TEvent;
+  stopped: boolean;
+  stopPropagation: () => void;
+};
+
 export type EventHandlers = {
-  onClick: (event: MouseEvent) => void;
-  onDoubleClick: (event: MouseEvent) => void;
-  onContextMenu: (event: MouseEvent) => void;
-  onMouseDown: (event: MouseEvent) => void;
-  onMouseEnter: (event: MouseEvent) => void;
-  onMouseLeave: (event: MouseEvent) => void;
-  onMouseMove: (event: MouseEvent) => void;
-  onMouseUp: (event: MouseEvent) => void;
-  onPointerUp: (event: MouseEvent) => void;
-  onPointerDown: (event: MouseEvent) => void;
-  onPointerMove: (event: MouseEvent) => void;
-  onPointerEnter: (event: MouseEvent) => void;
-  onPointerLeave: (event: MouseEvent) => void;
-  onWheel: (event: WheelEvent) => void;
+  onClick: (event: ThreeEvent<MouseEvent>) => void;
+  onDoubleClick: (event: ThreeEvent<MouseEvent>) => void;
+  onContextMenu: (event: ThreeEvent<MouseEvent>) => void;
+  onMouseDown: (event: ThreeEvent<MouseEvent>) => void;
+  onMouseEnter: (event: ThreeEvent<MouseEvent>) => void;
+  onMouseLeave: (event: ThreeEvent<MouseEvent>) => void;
+  onMouseMove: (event: ThreeEvent<MouseEvent>) => void;
+  onMouseUp: (event: ThreeEvent<MouseEvent>) => void;
+  onPointerUp: (event: ThreeEvent<MouseEvent>) => void;
+  onPointerDown: (event: ThreeEvent<MouseEvent>) => void;
+  onPointerMove: (event: ThreeEvent<MouseEvent>) => void;
+  onPointerEnter: (event: ThreeEvent<MouseEvent>) => void;
+  onPointerLeave: (event: ThreeEvent<MouseEvent>) => void;
+  onWheel: (event: ThreeEvent<WheelEvent>) => void;
 };
 export type EventType = keyof EventHandlers;
 
@@ -71,12 +73,12 @@ export type EventType = keyof EventHandlers;
 /*                                                                                */
 /**********************************************************************************/
 
-type ThreeConstructor = (typeof THREE)[keyof typeof THREE];
+type ThreeConstructor = ExtractConstructors<(typeof THREE)[keyof typeof THREE]>;
 export type ThreeElement<TConstructor = ThreeConstructor> = InstanceFromConstructor<TConstructor>;
 export type AugmentedElement<TConstructor = ThreeConstructor> = ThreeElement<TConstructor> & {
   [$S3C]: Augmentation;
 };
-export type Augmentation = { props: Record<string, any> };
+export type Augmentation = { props: ThreeProps<ThreeElement> };
 
 export type ThreeComponentProxy<Source = typeof THREE> = {
   [K in keyof Source]: ThreeComponent<Source[K]>;

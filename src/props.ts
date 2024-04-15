@@ -139,6 +139,10 @@ export function manageSceneGraph(
   createRenderEffect(
     mapArray(memo, child => {
       createRenderEffect(() => {
+        // NOTE:  this happens currently more then I would expect.
+        if (!child) {
+          return;
+        }
         /* Connect children */
         if (
           child instanceof Object3D &&
@@ -150,12 +154,9 @@ export function manageSceneGraph(
           return;
         }
 
-        if (!child) {
-          return;
-        }
-
         /* Attach children */
-        let attachType = child[$S3C]?.props.attach;
+        let attachType = child[$S3C].props.attach as "material" | "geometry" | "fog";
+
         if (!attachType) {
           if (child instanceof Material) attachType = "material";
           else if (child instanceof BufferGeometry) attachType = "geometry";

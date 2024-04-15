@@ -1,6 +1,7 @@
 import { createResizeObserver } from "@solid-primitives/resize-observer";
 import {
   Accessor,
+  ComponentProps,
   For,
   JSX,
   children,
@@ -9,21 +10,27 @@ import {
   onCleanup,
   splitProps,
 } from "solid-js";
-import { OrthographicCamera, PerspectiveCamera, Raycaster, Scene, WebGLRenderer } from "three";
+import {
+  OrthographicCamera,
+  PerspectiveCamera,
+  Raycaster,
+  Scene,
+  Vector2,
+  WebGLRenderer,
+} from "three";
 import { augment } from "./augment";
 import { initializeEvents } from "./events";
 import { frameContext, threeContext } from "./hooks";
 import { eventContext, portalContext } from "./internal-context";
 import { manageProps, manageSceneGraph } from "./props";
-import { AugmentedElement, CameraOptions, ThreeContext } from "./types";
+import { AugmentedElement, CameraType, ThreeContext, ThreeProps } from "./types";
 import { removeElementFromArray } from "./utils/remove-element-from-array";
 import { withMultiContexts } from "./utils/with-context";
 
-export interface CanvasProps {
-  children: JSX.Element;
-  fallback?: JSX.Element;
+export interface CanvasProps extends ComponentProps<"div"> {
   style?: JSX.CSSProperties;
-  camera?: Partial<CameraOptions>;
+  fallback?: JSX.Element;
+  camera?: Partial<ThreeProps<CameraType>>;
 }
 
 export interface Props extends CanvasProps {}
@@ -38,8 +45,8 @@ export interface Props extends CanvasProps {}
  * @param {Props} props - Configuration options include camera settings, style, and children elements.
  * @returns {JSX.Element} A div element containing the WebGL canvas configured to occupy the full available space.
  */
-export function Canvas(props: Props) {
-  const [_, rest] = splitProps(props, ["children", "style"]);
+export function Canvas(_props: Props) {
+  const [props, canvasProps] = splitProps(_props, ["fallback", "camera", "children", "style"]);
   const [portals, setPortals] = createSignal<JSX.Element[]>([], {
     equals: false,
   });
@@ -50,16 +57,22 @@ export function Canvas(props: Props) {
     <div style={{ width: "100%", height: "100%" }}>{canvas}</div>
   ) as HTMLDivElement;
 
-  // Setup of the Three.js context
+  // Initialize ThreeContext.
+  const [pointer, setPointer] = createSignal(new Vector2(), { equals: false });
   const context: ThreeContext = {
     canvas,
     // Augment camera with camera-props
-    camera: augment(new PerspectiveCamera() as AugmentedElement<PerspectiveCamera>, {
+    camera: augment(new PerspectiveCamera(), {
       get props() {
         return props.camera || {};
       },
     }),
     gl: new WebGLRenderer({ canvas }),
+    // Current normalized, centric pointer coordinates
+    get pointer() {
+      return pointer();
+    },
+    setPointer,
     raycaster: new Raycaster(),
     scene: new Scene(),
   };
@@ -136,7 +149,7 @@ export function Canvas(props: Props) {
         overflow: "hidden",
         ...props.style,
       }}
-      {...rest}
+      {...canvasProps}
     >
       {container}
     </div>
