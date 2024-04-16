@@ -1,39 +1,22 @@
 import { createResizeObserver } from "@solid-primitives/resize-observer";
-import {
-  Accessor,
-  ComponentProps,
-  For,
-  JSX,
-  children,
-  createRenderEffect,
-  createSignal,
-  onCleanup,
-  splitProps,
-} from "solid-js";
-import {
-  OrthographicCamera,
-  PerspectiveCamera,
-  Raycaster,
-  Scene,
-  Vector2,
-  WebGLRenderer,
-} from "three";
-import { augment } from "./augment";
-import { initializeEvents } from "./events";
-import { frameContext, threeContext } from "./hooks";
-import { eventContext, portalContext } from "./internal-context";
-import { manageProps, manageSceneGraph } from "./props";
-import { AugmentedElement, CameraType, ThreeContext, ThreeProps } from "./types";
-import { removeElementFromArray } from "./utils/remove-element-from-array";
-import { withMultiContexts } from "./utils/with-context";
+import { ComponentProps, JSX, createRenderEffect, splitProps } from "solid-js";
+import { OrthographicCamera, PerspectiveCamera, Raycaster, Scene, WebGLRenderer } from "three";
+import { createThree } from "./create-three";
+import { ThreeProps } from "./types";
 
 export interface CanvasProps extends ComponentProps<"div"> {
-  style?: JSX.CSSProperties;
+  camera?: Partial<ThreeProps<PerspectiveCamera> | ThreeProps<OrthographicCamera>>;
   fallback?: JSX.Element;
-  camera?: Partial<ThreeProps<CameraType>>;
+  gl?: Partial<ThreeProps<WebGLRenderer>> | ((canvas: HTMLCanvasElement) => WebGLRenderer);
+  orthographic?: boolean;
+  raycaster?: Partial<ThreeProps<Raycaster>>;
+  scene?: Partial<ThreeProps<Scene>>;
+  style?: JSX.CSSProperties;
+  shadows?: boolean | "basic" | "percentage" | "soft" | "variance" | WebGLRenderer["shadowMap"];
+  linear?: boolean;
+  flat?: boolean;
+  frameloop?: "never" | "demand" | "always";
 }
-
-export interface Props extends CanvasProps {}
 
 /**
  * Serves as the root component for all 3D scenes created with `solid-three`. It initializes
@@ -42,114 +25,54 @@ export interface Props extends CanvasProps {}
  * `useFrame` should only be used within this component to ensure proper context.
  *
  * @function Canvas
- * @param {Props} props - Configuration options include camera settings, style, and children elements.
+ * @param {CanvasProps} props - Configuration options include camera settings, style, and children elements.
  * @returns {JSX.Element} A div element containing the WebGL canvas configured to occupy the full available space.
  */
-export function Canvas(_props: Props) {
-  const [props, canvasProps] = splitProps(_props, ["fallback", "camera", "children", "style"]);
-  const [portals, setPortals] = createSignal<JSX.Element[]>([], {
-    equals: false,
-  });
-  const frameListeners: ((value: number) => void)[] = [];
+export function Canvas(_props: CanvasProps) {
+  const [props, canvasProps] = splitProps(_props, ["fallback", "camera", "children", "ref"]);
 
   const canvas = (<canvas style={{ width: "100%", height: "100%" }} />) as HTMLCanvasElement;
   const container = (
     <div style={{ width: "100%", height: "100%" }}>{canvas}</div>
   ) as HTMLDivElement;
 
-  // Initialize ThreeContext.
-  const [pointer, setPointer] = createSignal(new Vector2(), { equals: false });
-  const context: ThreeContext = {
-    canvas,
-    // Augment camera with camera-props
-    camera: augment(new PerspectiveCamera(), {
-      get props() {
-        return props.camera || {};
-      },
-    }),
-    gl: new WebGLRenderer({ canvas }),
-    // Current normalized, centric pointer coordinates
-    get pointer() {
-      return pointer();
-    },
-    setPointer,
-    raycaster: new Raycaster(),
-    scene: new Scene(),
-  };
-
-  // Internal methods injected through context
-  const addEventListener = initializeEvents(context);
-  const addFrameListener = (callback: () => void) => {
-    frameListeners.push(callback);
-    onCleanup(() => removeElementFromArray(frameListeners, callback));
-  };
-  const addPortal = (element: JSX.Element) => {
-    setPortals(portals => (portals.push(element), portals));
-    onCleanup(() => setPortals(portals => removeElementFromArray(portals, element)));
-  };
+  const context = createThree(canvas, props);
 
   // Resize observer for the canvas to adjust camera and renderer on size change
   createResizeObserver(
     () => container,
-    size => {
+    () => {
       context.gl.setSize(window.innerWidth, window.innerHeight);
       context.gl.setPixelRatio(window.devicePixelRatio);
 
       if (context.camera instanceof OrthographicCamera) {
-        context.camera.left = size.width / -2;
-        context.camera.right = size.width / 2;
-        context.camera.top = size.height / 2;
-        context.camera.bottom = size.height / -2;
+        context.camera.left = window.innerWidth / -2;
+        context.camera.right = window.innerWidth / 2;
+        context.camera.top = window.innerHeight / 2;
+        context.camera.bottom = window.innerHeight / -2;
       } else {
-        context.camera.aspect = size.width / size.height;
+        context.camera.aspect = window.innerWidth / window.innerHeight;
       }
       context.camera.updateProjectionMatrix();
     },
   );
 
-  // Management of scene graph
-  manageSceneGraph(
-    context.scene,
-    children(
-      withMultiContexts(
-        () => (
-          <>
-            {props.children}
-            <For each={portals()}>{Portal => Portal}</For>
-          </>
-        ),
-        [
-          // Dependency Injection
-          [threeContext, context],
-          [frameContext, addFrameListener],
-          [portalContext, addPortal],
-          [eventContext, addEventListener],
-        ],
-      ),
-    ) as unknown as Accessor<AugmentedElement[]>,
-  );
-
-  // Management of camera
-  createRenderEffect(() => manageProps(() => context.camera, props.camera || {}));
-
-  // Render loop
-  const loop = (value: number) => {
-    requestAnimationFrame(loop);
-    context.gl.render(context.scene, context.camera);
-    frameListeners.forEach(listener => listener(value));
-  };
-  requestAnimationFrame(loop);
+  // Assign ref
+  createRenderEffect(() => {
+    if (props.ref instanceof Function) props.ref(container);
+    else props.ref = container;
+  });
 
   return (
     <div
+      {...canvasProps}
       style={{
         position: "relative",
         width: "100%",
         height: "100%",
         overflow: "hidden",
-        ...props.style,
+        ...canvasProps.style,
       }}
-      {...canvasProps}
     >
       {container}
     </div>

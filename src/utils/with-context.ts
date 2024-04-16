@@ -1,9 +1,11 @@
-import { Accessor, Context, JSX } from 'solid-js'
+import { Accessor, Context, JSX } from "solid-js";
 
 export type ContextProviderProps = {
-  children?: JSX.Element
-} & Record<string, unknown>
-export type ContextProvider<T extends ContextProviderProps> = (props: { children: JSX.Element } & T) => JSX.Element
+  children?: JSX.Element;
+} & Record<string, unknown>;
+export type ContextProvider<T extends ContextProviderProps> = (
+  props: { children: JSX.Element } & T,
+) => JSX.Element;
 /**
  * A utility-function to provide context to components.
  *
@@ -23,18 +25,22 @@ export type ContextProvider<T extends ContextProviderProps> = (props: { children
  * ```
  */
 
-export function withContext<T>(children: Accessor<JSX.Element | JSX.Element[]>, context: Context<T>, value: T) {
-  let result: JSX.Element | JSX.Element[]
+export function withContext<T, TResult>(
+  children: Accessor<TResult>,
+  context: Context<T>,
+  value: T,
+) {
+  let result: TResult;
 
   context.Provider({
     value,
     children: (() => {
-      result = children()
-      return ''
+      result = children();
+      return "";
     }) as any as JSX.Element,
-  })
+  });
 
-  return () => result
+  return () => result;
 }
 
 /*
@@ -63,30 +69,30 @@ Type validation of the `values` array thanks to the amazing @otonashixav (https:
  * ```
  */
 
-export function withMultiContexts<T extends readonly [unknown?, ...unknown[]]>(
-  children: Accessor<JSX.Element | JSX.Element[]>,
+export function withMultiContexts<TResult, T extends readonly [unknown?, ...unknown[]]>(
+  children: () => TResult,
   values: {
-    [K in keyof T]: readonly [Context<T[K]>, [T[K]][T extends unknown ? 0 : never]]
+    [K in keyof T]: readonly [Context<T[K]>, [T[K]][T extends unknown ? 0 : never]];
   },
 ) {
-  let result: JSX.Element | JSX.Element[]
+  let result: JSX.Element | JSX.Element[];
 
   const fn = (index: number) => {
-    const [context, value] = values[index]!
+    const [context, value] = values[index]!;
     context.Provider({
       value,
       children: (() => {
         if (index < values.length - 1) {
-          fn(index + 1)
+          fn(index + 1);
         } else {
-          result = children()
+          result = children();
         }
-        return ''
+        return "";
       }) as any as JSX.Element,
-    })
-  }
+    });
+  };
 
-  fn(0)
+  fn(0);
 
-  return () => result
+  return () => result;
 }

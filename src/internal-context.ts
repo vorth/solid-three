@@ -1,11 +1,11 @@
 import { JSX, createContext, useContext } from "solid-js";
 import { Object3D } from "three";
+import { CanvasProps } from "./canvas";
 import { AugmentedElement, EventType } from "./types";
 
 /**
- * Registers an event listener for a Three.js object within the `solid-three` Canvas component.
- * This function must be called within components that are descendants of the Canvas component
- * where `eventContext` is provided.
+ * Registers an event listener for an `AugmentedElement` to the nearest Canvas component up the component tree.
+ * This function must be called within components that are descendants of the Canvas component.
  *
  * @param {AugmentedElement<Object3D>} object - The Three.js object to attach the event listener to.
  * @param {EventType} type - The type of event to listen for (e.g., 'click', 'mouseenter').
@@ -22,7 +22,6 @@ export const eventContext =
   createContext<(object: AugmentedElement<Object3D>, type: EventType) => void>();
 
 /**
- * Adds children elements to a portal managed by the `solid-three` Canvas component.
  * This function facilitates the rendering of JSX elements outside the normal scene
  * graph, and must be used within components that are descendants of the Canvas component.
  *
@@ -37,3 +36,19 @@ export const addPortal = (children: JSX.Element | JSX.Element[]) => {
   addPortal(children);
 };
 export const portalContext = createContext<(children: JSX.Element | JSX.Element[]) => void>();
+
+/**
+ * Hook that provides access to the props of the nearest Canvas component up the component tree.
+ * This hook must be used within components that are descendants of the Canvas component.
+ *
+ * @returns {CanvasProps} The current properties of the Canvas component.
+ * @throws {Error} Throws an error if used outside of a Canvas component context.
+ */
+export const useCanvasProps = () => {
+  const canvasProps = useContext(canvasPropsContext);
+  if (!canvasProps) {
+    throw new Error("S3F: Hooks can only be used within the Canvas component!");
+  }
+  return canvasProps;
+};
+export const canvasPropsContext = createContext<CanvasProps>();

@@ -1,8 +1,9 @@
 import { Component, createMemo, JSX, mergeProps } from "solid-js";
+import type * as THREE from "three";
 import { augment } from "./augment";
 import { Portal, Primitive } from "./components";
 import { manageProps } from "./props";
-import { ConstructorRepresentation, ThreeComponent, ThreeComponentProxy } from "./types";
+import { Constructor, ThreeComponent, ThreeComponentProxy } from "./types";
 
 /**********************************************************************************/
 /*                                                                                */
@@ -18,7 +19,7 @@ const CATALOGUE = {};
 /**
  * Predefined components that can be used directly within the system.
  */
-const COMPONENTS = {
+const COMPONENTS: SolidThree.Components = {
   Primitive,
   Portal,
 };
@@ -26,10 +27,16 @@ const COMPONENTS = {
 /**
  * Extends the global CATALOGUE with additional objects.
  *
- * @param {Record<string, ConstructorRepresentation>} objects - The objects to add to the catalogue.
+ * @param {Record<string, Constructor>} objects - The objects to add to the catalogue.
  */
-export const extend = (objects: Record<string, ConstructorRepresentation>): void =>
-  void Object.assign(CATALOGUE, objects);
+export const extend = (
+  objects: Partial<
+    | {
+        [TKey in keyof SolidThree.ThreeElements]: Constructor<SolidThree.ThreeElements[TKey]>;
+      }
+    | typeof THREE
+  >,
+): void => void Object.assign(CATALOGUE, objects);
 
 /**********************************************************************************/
 /*                                                                                */
@@ -46,7 +53,9 @@ const T_CACHE = new Map<string, Component<any>>(Object.entries(COMPONENTS));
  * A proxy that provides on-demand creation and caching of `solid-three` components.
  * It represents a dynamic layer over the predefined components and any added through extend function.
  */
-export const T = new Proxy<ThreeComponentProxy & typeof COMPONENTS>({} as any, {
+export const T = new Proxy<
+  ThreeComponentProxy<typeof THREE & SolidThree.ThreeElements> & SolidThree.Components
+>({} as any, {
   get: (_, name: string) => {
     /* Create and memoize a wrapper component for the specified property. */
     if (!T_CACHE.has(name)) {
@@ -71,12 +80,14 @@ export const T = new Proxy<ThreeComponentProxy & typeof COMPONENTS>({} as any, {
  * @param {TSource} source - The constructor from which the component will be created.
  * @returns {ThreeComponent<TSource>} The created component.
  */
-function createThreeComponent<TSource>(source: TSource): ThreeComponent<TSource> {
+function createThreeComponent<TSource>(
+  source: TSource,
+): ThreeComponent<TSource | SolidThree.ThreeElements> {
   const Component = (props: any) => {
     const merged = mergeProps({ args: [] }, props);
     const memo = createMemo(() => {
       try {
-        return augment(new source(...merged.args), { props });
+        return augment(new (source as any)(...merged.args), { props });
       } catch (e) {
         console.error(e);
         throw new Error("");

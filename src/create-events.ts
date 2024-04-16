@@ -2,6 +2,7 @@ import { onCleanup } from "solid-js";
 import { Intersection, Object3D } from "three";
 import { $S3C } from "./augment";
 import { AugmentedElement, EventType, ThreeContext, ThreeEvent } from "./types";
+import { isAugmentedElement } from "./utils/is-augmented-element";
 import { removeElementFromArray } from "./utils/remove-element-from-array";
 
 /**
@@ -17,9 +18,9 @@ export const isEventType = (type: string): type is EventType =>
  * Initializes and manages event handling for `AugmentedElement<Object3D>`.
  *
  * @param {ThreeContext} context
- * @returns {Function} A function to register an `AugmentedElement<Object3D>` with the event system.
+ * @returns An object containing `addEventListener`-function and `eventRegistry`-object.
  */
-export const initializeEvents = (context: ThreeContext) => {
+export const createEvents = (context: ThreeContext) => {
   /**
    * An object keeping track of all the `AugmentedElement<Object3D>` that are listening to a specific event.
    */
@@ -35,16 +36,12 @@ export const initializeEvents = (context: ThreeContext) => {
     onDoubleClick: [] as AugmentedElement<Object3D>[],
   } as const;
 
-  /**
-   * Creates a `ThreeEvent` from the current `MouseEvent` | `WheelEvent`.
-   *
-   * @template TEvent Type of the event (MouseEvent or WheelEvent).
-   * @param {TEvent} nativeEvent - The event to prepare.
-   */
+  // Creates a `ThreeEvent` from the current `MouseEvent` | `WheelEvent`.
   const createThreeEvent = <TEvent extends MouseEvent | WheelEvent>(
     nativeEvent: TEvent,
   ): ThreeEvent<TEvent> => {
     const event = {
+      ...nativeEvent,
       nativeEvent,
       stopped: false,
       stopPropagation: () => (event.stopped = true),
@@ -52,18 +49,17 @@ export const initializeEvents = (context: ThreeContext) => {
     return event;
   };
 
-  /**
-   * Performs a raycast from the camera through the mouse position to find intersecting 3D objects.
-   *
-   * @template T Type of the event (MouseEvent or WheelEvent).
-   * @param {TEvent} event - The event containing the mouse coordinates.
-   * @param {keyof typeof eventRegistry} type - The type of event to handle.
-   * @returns {Intersection<AugmentedElement<Object3D>>[]} An array of intersections sorted by distance.
-   */
+  // Performs a raycast from the camera through the mouse position to find intersecting 3D objects.
   const raycast = <TNativeEvent extends MouseEvent | WheelEvent>(
     nativeEvent: TNativeEvent,
     type: keyof typeof eventRegistry,
   ): Intersection<AugmentedElement<Object3D>>[] => {
+    context.setPointer(pointer => {
+      pointer.x = (nativeEvent.offsetX / window.innerWidth) * 2 - 1;
+      pointer.y = -(nativeEvent.offsetY / window.innerHeight) * 2 + 1;
+      return pointer;
+    });
+
     context.raycaster.setFromCamera(context.pointer, context.camera);
 
     const duplicates = new Set<AugmentedElement<Object3D>>();
@@ -86,17 +82,8 @@ export const initializeEvents = (context: ThreeContext) => {
     );
   };
 
-  /**
-   * Propagates an event down through the ancestors of a given `Object3D` in a scene graph,
-   * calling the event handler for each ancestor as long as the event has not been marked as stopped.
-   *
-   * @template TNativeEvent - The native browser event type that is being wrapped by `TEvent`.
-   * @template TEvent - The type of the event that extends `ThreeEvent<TNativeEvent>`
-   *
-   * @param {AugmentedElement<Object3D>} element - The starting `Object3D` from which to begin bubbling the event.
-   * @param {EventType} type - The type of the event to handle (e.g., 'onClick', 'onMouseMove').
-   * @param {TEvent} event - The event instance to be propagated. This event can be stopped by calling `event.stopPropagation()`
-   */
+  // Propagates an event down through the ancestors of a given `Object3D` in a scene graph,
+  // calling the event handler for each ancestor as long as the event has not been marked as stopped.
   const bubbleDown = <
     TNativeEvent extends MouseEvent | WheelEvent,
     TEvent extends ThreeEvent<TNativeEvent>,
@@ -107,48 +94,42 @@ export const initializeEvents = (context: ThreeContext) => {
   ) => {
     let node: Object3D | null = element.parent;
     while (node) {
+      // If event has been stopped with event.stopPropagation() we break out.
       if (event.stopped) break;
-      node[$S3C]?.props[type]?.(event);
+      // If node is an AugmentedElement we call the type's event-handler if it is defined.
+      if (isAugmentedElement(node)) {
+        node[$S3C].props[type]?.(event);
+      }
+      // We bubble a layer down.
       node = node.parent;
     }
   };
 
-  /**
-   * A handler-factory for `on{Pointer|Mouse}Move` events.
-   * This handler manages also its derived events:
-   * - `on{Pointer|Mouse}Enter`
-   * - `on{Pointer|Mouse}Leave`
-   *
-   * @param {"Pointer" | "Mouse"} type - The type of movement: `"Mouse"` or `"Pointer"`.
-   * @returns {Function} The event handler function for the specified `move` type.
-   */
+  // A handler-factory for `on{Pointer|Mouse}Move` events.
+  // This handler manages also its derived events:
+  // - `on{Pointer|Mouse}Enter`
+  // - `on{Pointer|Mouse}Leave`
   const createMoveHandler = (type: "Pointer" | "Mouse") => (nativeEvent: MouseEvent) => {
-    context.setPointer(pointer => {
-      pointer.x = (nativeEvent.clientX / window.innerWidth) * 2 - 1;
-      pointer.y = -(nativeEvent.clientY / window.innerHeight) * 2 + 1;
-      return pointer;
-    });
-
     const moveEvent = createThreeEvent(nativeEvent);
     const enterEvent = createThreeEvent(nativeEvent);
 
     let staleIntersects = new Set(priorIntersects[type]);
 
-    for (const { object } of raycast(nativeEvent, `on${type}Move`)) {
-      const props = object[$S3C].props;
+    for (const intersection of raycast(nativeEvent, `on${type}Move`)) {
+      const props = intersection.object[$S3C].props;
 
-      if (!enterEvent.stopped && !priorIntersects[type].has(object)) {
+      if (!enterEvent.stopped && !priorIntersects[type].has(intersection.object)) {
         props[`on${type}Enter`]?.(enterEvent);
-        bubbleDown(object, `on${type}Enter`, enterEvent);
+        bubbleDown(intersection.object, `on${type}Enter`, enterEvent);
       }
 
       if (!moveEvent.stopped) {
         props[`on${type}Move`]?.(moveEvent);
-        bubbleDown(object, `on${type}Move`, moveEvent);
+        bubbleDown(intersection.object, `on${type}Move`, moveEvent);
       }
 
-      staleIntersects.delete(object);
-      priorIntersects[type].add(object);
+      staleIntersects.delete(intersection.object);
+      priorIntersects[type].add(intersection.object);
 
       if (moveEvent.stopped && enterEvent.stopped) break;
     }
@@ -178,13 +159,7 @@ export const initializeEvents = (context: ThreeContext) => {
     Pointer: undefined as undefined | MouseEvent,
   };
 
-  /**
-   * Creates a generic event handler for events other than `move` and its derived events.
-   *
-   * @template TEvent Type of the event: `MouseEvent | WheelEvent`
-   * @param {keyof typeof eventRegistry} type - The type of event to handle.
-   * @returns {Function} The event handler function for the specified type.
-   */
+  // Creates a generic event handler for events other than `move` and its derived events.
   const createEventHandler =
     <TEvent extends MouseEvent | WheelEvent>(type: keyof typeof eventRegistry) =>
     (nativeEvent: TEvent) => {
@@ -216,7 +191,7 @@ export const initializeEvents = (context: ThreeContext) => {
    * @param {AugmentedElement<Object3D>} object - The 3D object to register.
    * @param {EventType} type - The type of event the object should listen for.
    */
-  return (object: AugmentedElement<Object3D>, type: EventType) => {
+  const addEventListener = (object: AugmentedElement<Object3D>, type: EventType) => {
     const isDerivedEvent = type.includes("Enter") || type.includes("Leave");
     const isPointerEvent = type.includes("Pointer");
 
@@ -242,7 +217,10 @@ export const initializeEvents = (context: ThreeContext) => {
           }
         }
       }
+
       removeElementFromArray(eventRegistry[type], object);
     });
   };
+
+  return { addEventListener, eventRegistry };
 };

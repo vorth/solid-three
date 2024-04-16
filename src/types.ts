@@ -2,6 +2,17 @@ import { Component, ParentProps, Setter } from "solid-js";
 import * as THREE from "three";
 import { OrthographicCamera, PerspectiveCamera } from "three";
 import { $S3C } from "./augment";
+import { Portal, Primitive } from "./components";
+
+declare global {
+  namespace SolidThree {
+    interface Components {
+      Primitive: typeof Primitive;
+      Portal: typeof Portal;
+    }
+    interface ThreeElements {}
+  }
+}
 
 /**********************************************************************************/
 /*                                                                                */
@@ -10,13 +21,19 @@ import { $S3C } from "./augment";
 /**********************************************************************************/
 
 export type ThreeContext = {
-  camera: AugmentedElement<CameraType>;
+  camera: AugmentedElement<PerspectiveCamera | OrthographicCamera>;
   canvas: HTMLCanvasElement;
-  gl: THREE.WebGLRenderer;
+  gl: AugmentedElement<THREE.WebGLRenderer>;
   pointer: THREE.Vector2;
   setPointer: Setter<THREE.Vector2>;
-  raycaster: THREE.Raycaster;
-  scene: THREE.Scene;
+  raycaster: AugmentedElement<THREE.Raycaster>;
+  render: (delta: number) => void;
+  requestRender: () => void;
+  scene: AugmentedElement<THREE.Object3D>;
+  xr: {
+    connect: () => void;
+    disconnect: () => void;
+  };
 };
 
 export type Size = {
@@ -26,16 +43,14 @@ export type Size = {
   width: number;
 };
 
-export type ConstructorRepresentation = new (...args: any[]) => any;
-type ExtractConstructors<T> = T extends ConstructorRepresentation ? T : never;
-
-/**********************************************************************************/
-/*                                                                                */
-/*                                     Camera                                     */
-/*                                                                                */
-/**********************************************************************************/
+export type Constructor<T = any> = new (...args: any[]) => T;
+type ExtractConstructors<T> = T extends Constructor ? T : never;
 
 export type CameraType = PerspectiveCamera | OrthographicCamera;
+
+export type KeyOfOptionals<T> = keyof {
+  [K in keyof T as T extends Record<K, T[K]> ? never : K]: T[K];
+};
 
 /**********************************************************************************/
 /*                                                                                */
@@ -43,7 +58,7 @@ export type CameraType = PerspectiveCamera | OrthographicCamera;
 /*                                                                                */
 /**********************************************************************************/
 
-export type ThreeEvent<TEvent extends WheelEvent | MouseEvent> = {
+export type ThreeEvent<TEvent extends WheelEvent | MouseEvent = WheelEvent | MouseEvent> = {
   nativeEvent: TEvent;
   stopped: boolean;
   stopPropagation: () => void;
@@ -63,8 +78,10 @@ export type EventHandlers = {
   onPointerMove: (event: ThreeEvent<MouseEvent>) => void;
   onPointerEnter: (event: ThreeEvent<MouseEvent>) => void;
   onPointerLeave: (event: ThreeEvent<MouseEvent>) => void;
+  onPointerMissed: (event: ThreeEvent<MouseEvent>) => void;
   onWheel: (event: ThreeEvent<WheelEvent>) => void;
 };
+
 export type EventType = keyof EventHandlers;
 
 /**********************************************************************************/
@@ -78,19 +95,31 @@ export type ThreeElement<TConstructor = ThreeConstructor> = InstanceFromConstruc
 export type AugmentedElement<TConstructor = ThreeConstructor> = ThreeElement<TConstructor> & {
   [$S3C]: Augmentation;
 };
-export type Augmentation = { props: ThreeProps<ThreeElement> };
+export type Augmentation = { props: ThreeProps<ThreeElement>; children: Set<AugmentedElement> };
 
-export type ThreeComponentProxy<Source = typeof THREE> = {
+export type ThreeComponentProxy<Source> = {
   [K in keyof Source]: ThreeComponent<Source[K]>;
 };
 export type ThreeComponent<Source> = Component<ThreeProps<Source>>;
 export type ThreeProps<Source> = Partial<
-  ParentProps<Omit<InstanceProps<Source> & EventHandlers & { args: Args<Source> }, "children">>
+  ParentProps<
+    Omit<InstanceProps<Source>, "children" | "attach"> &
+      EventHandlers & {
+        args: Args<Source>;
+        onUpdate: (self: AugmentedElement<InstanceFromConstructor<Source>>) => void;
+        attach:
+          | string
+          | ((
+              parent: AugmentedElement<THREE.Object3D>,
+              self: AugmentedElement<InstanceFromConstructor<Source>>,
+            ) => () => void);
+      }
+  >
 >;
 type InstanceProps<Source> = WithMapProps<InstanceFromConstructor<Source>>;
 type Args<T> = T extends new (...args: any[]) => any ? AllConstructorParameters<T> : any[];
 
-type InstanceFromConstructor<TConstructor> = TConstructor extends new (
+export type InstanceFromConstructor<TConstructor> = TConstructor extends new (
   ...args: any[]
 ) => infer TObject
   ? TObject

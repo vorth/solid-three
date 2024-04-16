@@ -10,7 +10,10 @@ export const $S3C = Symbol("solid-three");
  * @param {Augmentation} augmentation - additional data: `{ props }`
  * @returns {AugmentedElement} the `three` instance with the additional data
  */
-export const augment = <T extends ThreeElement>(instance: T, augmentation: Augmentation) => {
-  instance[$S3C] = augmentation;
+export const augment = <T extends ThreeElement>(
+  instance: T,
+  augmentation: Partial<Omit<Augmentation, "props">> & Pick<Augmentation, "props">,
+) => {
+  instance[$S3C] = { children: new Set(), ...augmentation };
   return instance as AugmentedElement<T>;
 };

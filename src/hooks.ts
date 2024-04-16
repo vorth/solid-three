@@ -1,4 +1,4 @@
-import { Accessor, createContext, createResource, useContext } from "solid-js";
+import { Accessor, Resource, createContext, createResource, useContext } from "solid-js";
 import { ThreeContext } from "./types";
 
 /**
@@ -26,17 +26,22 @@ export const threeContext = createContext<ThreeContext>(null!);
  * Hook to register a callback that will be executed on each animation frame within the `<Canvas/>` component.
  * This hook must be used within a component that is a descendant of the `<Canvas/>` component.
  *
- * @param {() => void} callback - The callback function to be executed on each frame.
+ * @param callback - The callback function to be executed on each frame.
  * @throws {Error} Throws an error if used outside of the Canvas component context.
  */
-export const useFrame = (callback: () => void) => {
+export const useFrame = (
+  callback: (context: ThreeContext, delta: number, frame?: XRFrame) => void,
+) => {
   const addFrameListener = useContext(frameContext);
   if (!addFrameListener) {
     throw new Error("S3F: Hooks can only be used within the Canvas component!");
   }
   addFrameListener(callback);
 };
-export const frameContext = createContext<(callback: () => void) => void>();
+export const frameContext =
+  createContext<
+    (callback: (context: ThreeContext, delta: number, frame?: XRFrame) => void) => void
+  >();
 
 /**
  * Hook to create and manage a resource using a Three.js loader. It ensures that the loader is
@@ -44,24 +49,62 @@ export const frameContext = createContext<(callback: () => void) => void>();
  *
  * @template TResult The type of the resolved data when the loader completes loading.
  * @template TArg The argument type expected by the loader function.
- * @param {new () => { load: (value: TArg, onLoad: (value: TResult) => void) => void }} Constructor - The loader class constructor.
- * @param {Accessor<TArg>} args - The arguments to be passed to the loader function, wrapped in an accessor to enable reactivity.
- * @returns {Accessor<TResult>} An accessor containing the loaded resource, re-evaluating when inputs change.
+ * @param Constructor - The loader class constructor.
+ * @param args - The arguments to be passed to the loader function, wrapped in an accessor to enable reactivity.
+ * @returns An accessor containing the loaded resource, re-evaluating when inputs change.
  */
-export const useLoader = <TResult, TArg>(
-  Constructor: new () => { load: (value: TArg, onLoad: (value: TResult) => void) => void },
+export const useLoader = <TArg extends string | readonly string[], TLoader extends Loader>(
+  Constructor: new () => TLoader,
   args: Accessor<TArg>,
+  setup?: (loader: TLoader) => void,
 ) => {
-  let loader = LOADER_CACHE.get(Constructor);
-  if (!loader) {
-    loader = new Constructor();
-    LOADER_CACHE.set(Constructor, loader);
+  let cache = LOADER_CACHE.get(Constructor) as LoaderCache<TLoader>;
+  if (!cache) {
+    cache = {
+      loader: new Constructor(),
+      resources: {},
+    };
+    LOADER_CACHE.set(Constructor, cache);
   }
+  const { loader, resources } = cache;
+  setup?.(loader);
 
-  const [resource] = createResource(
-    args,
-    args => new Promise<TResult>((resolve, reject) => loader.load(args, resolve, null, reject)),
+  const load = (arg: string) => {
+    if (resources[arg]) return resources[arg];
+    return (resources[arg] = new Promise((resolve, reject) =>
+      loader.load(
+        arg,
+        value => {
+          resources[arg] = value;
+          resolve(value);
+        },
+        undefined,
+        reject,
+      ),
+    ));
+  };
+
+  const [resource] = createResource(args, args =>
+    Array.isArray(args)
+      ? Promise.all((args as string[]).map(arg => load(arg)))
+      : load(args as string),
   );
-  return resource;
+
+  return resource as Resource<
+    UseLoaderOverload<string, TLoader extends Loader<infer U> ? U : never, TArg>
+  >;
 };
-const LOADER_CACHE = new Map();
+type Loader<TLoaderResult = any> = {
+  load: (
+    value: string,
+    onLoad: (value: TLoaderResult) => void,
+    onProgress: (() => void) | undefined,
+    onReject: ((error: ErrorEvent) => void) | undefined,
+  ) => void | null;
+};
+type UseLoaderOverload<TLoaderArg, TLoaderResult, TArg> = TArg extends readonly TLoaderArg[]
+  ? { [K in keyof TArg]: TLoaderResult }
+  : TLoaderResult;
+
+const LOADER_CACHE = new Map<any, LoaderCache>();
+type LoaderCache<T = Loader<any>> = { loader: T; resources: {} };
