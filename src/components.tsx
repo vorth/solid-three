@@ -45,7 +45,7 @@ export const Portal = (props: PortalProps) => {
 type PortalProps = ParentProps<{ element?: ThreeElement<Object3D> | AugmentedElement<Object3D> }>;
 
 /**
- * Wraps a `Three.js` object instance and allows it to be used as a JSX component within a `solid-three` scene.
+ * Wraps a `ThreeElement` and allows it to be used as a JSX-component within a `solid-three` scene.
  *
  * @function Primitive
  * @template T - Extends ThreeElement which includes types from Three.js (like Mesh, Light, etc.).
@@ -54,6 +54,7 @@ type PortalProps = ParentProps<{ element?: ThreeElement<Object3D> | AugmentedEle
  * @returns {JSX.Element} The Three.js object wrapped as a JSX element, allowing it to be used within Solid's component system.
  */
 export function Primitive<T extends ThreeElement>(props: PrimitiveProps<T>) {
+  // @ts-ignore
   const memo = createMemo(() => augment(props.object, { props }));
 
   manageProps(memo, props);

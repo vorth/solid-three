@@ -4,17 +4,66 @@ import { OrthographicCamera, PerspectiveCamera, Raycaster, Scene, WebGLRenderer 
 import { createThree } from "./create-three";
 import { ThreeProps } from "./types";
 
+/**
+ * Props for the Canvas component, which initializes the Three.js rendering context and acts as the root for your 3D scene.
+ */
 export interface CanvasProps extends ComponentProps<"div"> {
-  camera?: Partial<ThreeProps<PerspectiveCamera> | ThreeProps<OrthographicCamera>>;
+  /**
+   * Configuration for the camera used in the scene.
+   */
+  camera?: Partial<ThreeProps<PerspectiveCamera> | ThreeProps<OrthographicCamera>> | THREE.Camera;
+
+  /**
+   * Element to render while the main content is loading asynchronously.
+   */
   fallback?: JSX.Element;
-  gl?: Partial<ThreeProps<WebGLRenderer>> | ((canvas: HTMLCanvasElement) => WebGLRenderer);
+
+  /**
+   * Options for the WebGLRenderer or a function returning a customized renderer.
+   */
+  gl?:
+    | Partial<ThreeProps<WebGLRenderer>>
+    | ((canvas: HTMLCanvasElement) => WebGLRenderer)
+    | THREE.WebGLRenderer;
+
+  /**
+   * Toggles between Orthographic and Perspective camera.
+   */
   orthographic?: boolean;
-  raycaster?: Partial<ThreeProps<Raycaster>>;
-  scene?: Partial<ThreeProps<Scene>>;
+
+  /**
+   * Configuration for the Raycaster used for mouse and pointer events.
+   */
+  raycaster?: Partial<ThreeProps<Raycaster>> | THREE.Raycaster;
+
+  /**
+   * Configuration for the Scene instance.
+   */
+  scene?: Partial<ThreeProps<Scene>> | THREE.Scene;
+
+  /**
+   * Custom CSS styles for the canvas container.
+   */
   style?: JSX.CSSProperties;
+
+  /**
+   * Enables and configures shadows in the scene.
+   */
   shadows?: boolean | "basic" | "percentage" | "soft" | "variance" | WebGLRenderer["shadowMap"];
+
+  /**
+   * Toggles linear interpolation for texture filtering.
+   */
   linear?: boolean;
+
+  /**
+   * Toggles flat interpolation for texture filtering.
+   */
   flat?: boolean;
+
+  /**
+   * Controls the rendering loop's operation mode.
+   */
   frameloop?: "never" | "demand" | "always";
 }
 
