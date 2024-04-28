@@ -11,7 +11,6 @@ import {
   ACESFilmicToneMapping,
   BasicShadowMap,
   Camera,
-  LinearEncoding,
   NoToneMapping,
   OrthographicCamera,
   PCFShadowMap,
@@ -22,7 +21,6 @@ import {
   VSMShadowMap,
   Vector2,
   WebGLRenderer,
-  sRGBEncoding,
 } from "three";
 import { augment } from "./augment";
 import { CanvasProps } from "./canvas";
@@ -280,6 +278,9 @@ export const manageCoreElements = (props: CanvasProps, context: ThreeContext) =>
           context.gl.shadowMap.needsUpdate = true;
       }
     });
+    // Set color space and tonemapping preferences
+    const LinearEncoding = 3000;
+    const sRGBEncoding = 3001;
     // Color management and tone-mapping
     manageProps(() => context.gl, {
       get outputEncoding() {
