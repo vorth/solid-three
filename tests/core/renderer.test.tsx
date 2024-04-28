@@ -607,7 +607,7 @@ describe("renderer", () => {
       },
     }).gl as unknown as THREE.WebGLRenderer & { outputColorSpace: string };
 
-    expect(gl.outputEncoding).toBe(sRGBEncoding);
+    expect(gl.outputColorSpace).toBe(THREE.SRGBColorSpace);
     expect(gl.toneMapping).toBe(THREE.ACESFilmicToneMapping);
     expect(texture.encoding).toBe(sRGBEncoding);
 

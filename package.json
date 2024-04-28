@@ -58,7 +58,7 @@
     "@jest/types": "^29.6.3",
     "@solidjs/testing-library": "^0.8.7",
     "@types/node": "^18.11.18",
-    "@types/three": "0.149.0",
+    "@types/three": "^0.164.0",
     "@vinxi/tsconfig": "0.0.3",
     "esbuild": "^0.16.16",
     "esbuild-register": "^3.4.2",
@@ -68,11 +68,11 @@
     "rollup": "^3.9.1",
     "rollup-plugin-dts": "^5.1.1",
     "solid-app-router": "^0.1.14",
-    "solid-js": "^1.7.0",
-    "three": "0.149.0",
+    "solid-js": "^1.8.0",
+    "three": "^0.164.0",
     "three-stdlib": "^2.29.6",
     "tsm": "^2.3.0",
-    "tsup": "^6.5.0",
+    "tsup": "^8.0.0",
     "tsup-preset-solid": "^2.2.0",
     "typescript": "^4.9.4",
     "vite": "4.1.1",
@@ -82,15 +82,14 @@
   },
   "peerDependencies": {
     "solid-js": "*",
-    "three": "*"
+    "three": "*",
+    "@types/three": "*"
   },
   "jest": {
     "preset": "scripts/jest/node"
   },
   "dependencies": {
-    "@solid-primitives/resize-observer": "^2.0.25",
-    "@types/three": "0.149.0",
-    "zustand": "^3.7.2"
+    "@solid-primitives/resize-observer": "^2.0.25"
   },
   "packageManager": "pnpm@7.26.0",
   "browser": {},
