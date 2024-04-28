@@ -1,6 +1,13 @@
 import { createResizeObserver } from "@solid-primitives/resize-observer";
 import { ComponentProps, JSX, createRenderEffect, splitProps } from "solid-js";
-import { OrthographicCamera, PerspectiveCamera, Raycaster, Scene, WebGLRenderer } from "three";
+import {
+  Camera,
+  OrthographicCamera,
+  PerspectiveCamera,
+  Raycaster,
+  Scene,
+  WebGLRenderer,
+} from "three";
 import { createThree } from "./create-three";
 import { ThreeProps } from "./types";
 
@@ -11,7 +18,7 @@ export interface CanvasProps extends ComponentProps<"div"> {
   /**
    * Configuration for the camera used in the scene.
    */
-  camera?: Partial<ThreeProps<PerspectiveCamera> | ThreeProps<OrthographicCamera>> | THREE.Camera;
+  camera?: Partial<ThreeProps<PerspectiveCamera> | ThreeProps<OrthographicCamera>> | Camera;
 
   /**
    * Element to render while the main content is loading asynchronously.
@@ -24,7 +31,7 @@ export interface CanvasProps extends ComponentProps<"div"> {
   gl?:
     | Partial<ThreeProps<WebGLRenderer>>
     | ((canvas: HTMLCanvasElement) => WebGLRenderer)
-    | THREE.WebGLRenderer;
+    | WebGLRenderer;
 
   /**
    * Toggles between Orthographic and Perspective camera.
@@ -34,12 +41,12 @@ export interface CanvasProps extends ComponentProps<"div"> {
   /**
    * Configuration for the Raycaster used for mouse and pointer events.
    */
-  raycaster?: Partial<ThreeProps<Raycaster>> | THREE.Raycaster;
+  raycaster?: Partial<ThreeProps<Raycaster>> | Raycaster;
 
   /**
    * Configuration for the Scene instance.
    */
-  scene?: Partial<ThreeProps<Scene>> | THREE.Scene;
+  scene?: Partial<ThreeProps<Scene>> | Scene;
 
   /**
    * Custom CSS styles for the canvas container.

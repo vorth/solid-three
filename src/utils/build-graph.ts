@@ -1,9 +1,11 @@
+import { Material, Object3D } from "three";
+
 export interface ObjectMap {
-  nodes: { [name: string]: THREE.Object3D };
-  materials: { [name: string]: THREE.Material };
+  nodes: { [name: string]: Object3D };
+  materials: { [name: string]: Material };
 }
 // Collects nodes and materials from a THREE.Object3D
-export function buildGraph(object: THREE.Object3D): ObjectMap {
+export function buildGraph(object: Object3D): ObjectMap {
   const data: ObjectMap = { nodes: {}, materials: {} };
   if (object) {
     object.traverse((obj: any) => {

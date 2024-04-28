@@ -1,5 +1,4 @@
-import { JSXElement, ParentProps, createMemo, createRenderEffect, mergeProps } from "solid-js";
-import { JSX } from "solid-js/jsx-runtime";
+import { JSX, ParentProps, createMemo, createRenderEffect, mergeProps } from "solid-js";
 import { Object3D } from "three";
 import { augment } from "./augment";
 import { threeContext, useThree } from "./hooks";
@@ -54,7 +53,6 @@ type PortalProps = ParentProps<{ element?: ThreeElement<Object3D> | AugmentedEle
  * @returns {JSX.Element} The Three.js object wrapped as a JSX element, allowing it to be used within Solid's component system.
  */
 export function Primitive<T extends ThreeElement>(props: PrimitiveProps<T>) {
-  // @ts-ignore
   const memo = createMemo(() => augment(props.object, { props }));
 
   manageProps(memo, props);
@@ -63,6 +61,6 @@ export function Primitive<T extends ThreeElement>(props: PrimitiveProps<T>) {
 }
 type PrimitiveProps<T> = Omit<ThreeProps<T>, "object" | "children" | "ref" | "args"> & {
   object: T;
-  children?: JSXElement;
+  children?: JSX.Element;
   ref?: T | ((value: T) => void);
 };
