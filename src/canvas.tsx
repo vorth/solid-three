@@ -103,6 +103,7 @@ export function Canvas(_props: CanvasProps) {
         context.camera.aspect = window.innerWidth / window.innerHeight;
       }
       context.camera.updateProjectionMatrix();
+      context.render(performance.now());
     },
   );
 
