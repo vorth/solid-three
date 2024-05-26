@@ -1,45 +1,45 @@
 import { onCleanup } from "solid-js";
 import { Intersection, Object3D } from "three";
+import { S3 } from "./";
 import { $S3C } from "./augment";
-import { AugmentedElement, EventType, ThreeContext, ThreeEvent } from "./types";
 import { isAugmentedElement } from "./utils/is-augmented-element";
 import { removeElementFromArray } from "./utils/remove-element-from-array";
 
 /**
  * Checks if a given string is a valid event type within the system.
  *
- * @param {string} type - The type of the event to check.
- * @returns {boolean} `true` if the type is a recognized `EventType`, otherwise `false`.
+ * @param type - The type of the event to check.
+ * @returns `true` if the type is a recognized `EventType`, otherwise `false`.
  */
-export const isEventType = (type: string): type is EventType =>
+export const isEventType = (type: string): type is S3.EventName =>
   /^on(Pointer|Click|DoubleClick|ContextMenu|Wheel|Mouse)/.test(type);
 
 /**
  * Initializes and manages event handling for `AugmentedElement<Object3D>`.
  *
- * @param {ThreeContext} context
+ * @param context
  * @returns An object containing `addEventListener`-function and `eventRegistry`-object.
  */
-export const createEvents = (context: ThreeContext) => {
+export const createEvents = (context: S3.Context) => {
   /**
    * An object keeping track of all the `AugmentedElement<Object3D>` that are listening to a specific event.
    */
   const eventRegistry = {
-    onMouseMove: [] as AugmentedElement<Object3D>[],
-    onMouseUp: [] as AugmentedElement<Object3D>[],
-    onMouseDown: [] as AugmentedElement<Object3D>[],
-    onPointerMove: [] as AugmentedElement<Object3D>[],
-    onPointerUp: [] as AugmentedElement<Object3D>[],
-    onPointerDown: [] as AugmentedElement<Object3D>[],
-    onWheel: [] as AugmentedElement<Object3D>[],
-    onClick: [] as AugmentedElement<Object3D>[],
-    onDoubleClick: [] as AugmentedElement<Object3D>[],
+    onMouseMove: [] as S3.Instance<Object3D>[],
+    onMouseUp: [] as S3.Instance<Object3D>[],
+    onMouseDown: [] as S3.Instance<Object3D>[],
+    onPointerMove: [] as S3.Instance<Object3D>[],
+    onPointerUp: [] as S3.Instance<Object3D>[],
+    onPointerDown: [] as S3.Instance<Object3D>[],
+    onWheel: [] as S3.Instance<Object3D>[],
+    onClick: [] as S3.Instance<Object3D>[],
+    onDoubleClick: [] as S3.Instance<Object3D>[],
   } as const;
 
   // Creates a `ThreeEvent` from the current `MouseEvent` | `WheelEvent`.
   const createThreeEvent = <TEvent extends MouseEvent | WheelEvent>(
     nativeEvent: TEvent,
-  ): ThreeEvent<TEvent> => {
+  ): S3.Event<TEvent> => {
     const event = {
       ...nativeEvent,
       nativeEvent,
@@ -53,7 +53,7 @@ export const createEvents = (context: ThreeContext) => {
   const raycast = <TNativeEvent extends MouseEvent | WheelEvent>(
     nativeEvent: TNativeEvent,
     type: keyof typeof eventRegistry,
-  ): Intersection<AugmentedElement<Object3D>>[] => {
+  ): Intersection<S3.Instance<Object3D>>[] => {
     context.setPointer(pointer => {
       pointer.x = (nativeEvent.offsetX / window.innerWidth) * 2 - 1;
       pointer.y = -(nativeEvent.offsetY / window.innerHeight) * 2 + 1;
@@ -62,12 +62,14 @@ export const createEvents = (context: ThreeContext) => {
 
     context.raycaster.setFromCamera(context.pointer, context.camera);
 
-    const duplicates = new Set<AugmentedElement<Object3D>>();
+    const duplicates = new Set<S3.Instance<Object3D>>();
 
     // NOTE:  we currently perform a recursive intersection-test just as r3f.
     //        this method performs a lot of duplicate intersection-tests.
-    const intersections: Intersection<AugmentedElement<Object3D>>[] =
-      context.raycaster.intersectObjects(eventRegistry[type], true);
+    const intersections: Intersection<S3.Instance<Object3D>>[] = context.raycaster.intersectObjects(
+      eventRegistry[type],
+      true,
+    );
 
     return (
       intersections
@@ -86,10 +88,10 @@ export const createEvents = (context: ThreeContext) => {
   // calling the event handler for each ancestor as long as the event has not been marked as stopped.
   const bubbleDown = <
     TNativeEvent extends MouseEvent | WheelEvent,
-    TEvent extends ThreeEvent<TNativeEvent>,
+    TEvent extends S3.Event<TNativeEvent>,
   >(
-    element: AugmentedElement<Object3D>,
-    type: EventType,
+    element: S3.Instance<Object3D>,
+    type: S3.EventName,
     event: TEvent,
   ) => {
     let node: Object3D | null = element.parent;
@@ -151,8 +153,8 @@ export const createEvents = (context: ThreeContext) => {
     priorMoveEvents[type] = nativeEvent;
   };
   const priorIntersects = {
-    Mouse: new Set<AugmentedElement<Object3D>>(),
-    Pointer: new Set<AugmentedElement<Object3D>>(),
+    Mouse: new Set<S3.Instance<Object3D>>(),
+    Pointer: new Set<S3.Instance<Object3D>>(),
   };
   const priorMoveEvents = {
     Mouse: undefined as undefined | MouseEvent,
@@ -188,10 +190,10 @@ export const createEvents = (context: ThreeContext) => {
   /**
    * Registers an `AugmentedElement<Object3D>` with the event handling system.
    *
-   * @param {AugmentedElement<Object3D>} object - The 3D object to register.
-   * @param {EventType} type - The type of event the object should listen for.
+   * @param object - The 3D object to register.
+   * @param type - The type of event the object should listen for.
    */
-  const addEventListener = (object: AugmentedElement<Object3D>, type: EventType) => {
+  const addEventListener = (object: S3.Instance<Object3D>, type: S3.EventName) => {
     const isDerivedEvent = type.includes("Enter") || type.includes("Leave");
     const isPointerEvent = type.includes("Pointer");
 

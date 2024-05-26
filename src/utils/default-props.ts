@@ -1,5 +1,9 @@
 import { MergeProps, mergeProps } from "solid-js";
-import { KeyOfOptionals } from "../types";
+
+/** Extracts the keys of the optional properties in T. */
+type KeyOfOptionals<T> = keyof {
+  [K in keyof T as T extends Record<K, T[K]> ? never : K]: T[K];
+};
 
 export function defaultProps<T, K extends KeyOfOptionals<T>>(
   props: T,

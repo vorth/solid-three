@@ -18,11 +18,11 @@ import {
   Texture,
   UnsignedByteType,
 } from "three";
+import { S3 } from "./";
 import { $S3C } from "./augment";
 import { isEventType } from "./create-events";
 import { useThree } from "./hooks";
 import { addToEventListeners, useCanvasProps } from "./internal-context";
-import { AugmentedElement } from "./types";
 import { hasColorSpace } from "./utils/has-colorspace";
 import { resolve } from "./utils/resolve";
 
@@ -42,7 +42,7 @@ import { resolve } from "./utils/resolve";
  * @param props - An object containing the props to apply. This includes both direct properties
  *                and special properties like `ref` and `children`.
  */
-export function manageProps<T>(object: Accessor<AugmentedElement<T>>, props: any) {
+export function manageProps<T>(object: Accessor<S3.Instance<T>>, props: any) {
   const [local, instanceProps] = splitProps(props, ["ref", "args", "object", "attach", "children"]);
 
   // Assign ref
@@ -54,7 +54,7 @@ export function manageProps<T>(object: Accessor<AugmentedElement<T>>, props: any
   // Connect or attach children to THREE-instance
   const childrenAccessor = children(() => props.children);
   createRenderEffect(() =>
-    manageSceneGraph(object(), childrenAccessor as unknown as Accessor<AugmentedElement>),
+    manageSceneGraph(object(), childrenAccessor as unknown as Accessor<S3.Instance>),
   );
 
   // Apply the props to THREE-instance
@@ -104,11 +104,11 @@ const NEEDS_UPDATE = [
  * automatic updates of the `needsUpdate` flag, color space conversions, and event listener management.
  * It efficiently manages property assignments with appropriate handling for different data types and structures.
  *
- * @param {AugmentedElement} source - The target object for property application.
- * @param {string} type - The property name, which can include nested paths indicated by hyphens.
- * @param {any} value - The value to be assigned to the property; can be of any appropriate type.
+ * @param source - The target object for property application.
+ * @param type - The property name, which can include nested paths indicated by hyphens.
+ * @param value - The value to be assigned to the property; can be of any appropriate type.
  */
-export const applyProp = <T>(source: AugmentedElement<T>, type: string, value: any) => {
+export const applyProp = <T>(source: S3.Instance<T>, type: string, value: any) => {
   if (!source) {
     console.error("error while applying prop", source, type, value);
     return;
@@ -232,12 +232,12 @@ export const applyProp = <T>(source: AugmentedElement<T>, type: string, value: a
  * - Default behavior for Three.js Object3D instances where children are added to the parent's children array if no specific attach property is provided.
  *
  * @template T The type parameter for the elements in the scene graph.
- * @param {AugmentedElement<T>} parent - The parent element to which children will be attached.
- * @param {Accessor<AugmentedElement<T> | AugmentedElement<T>[]>} childAccessor - A function returning the child or children to be managed.
+ * @param parent - The parent element to which children will be attached.
+ * @param childAccessor - A function returning the child or children to be managed.
  */
 export const manageSceneGraph = <T>(
-  parent: AugmentedElement<T>,
-  childAccessor: Accessor<AugmentedElement | AugmentedElement[]>,
+  parent: S3.Instance<T>,
+  childAccessor: Accessor<S3.Instance | S3.Instance[]>,
 ) => {
   createRenderEffect(
     mapArray(

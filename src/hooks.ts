@@ -1,18 +1,26 @@
 import { Accessor, Resource, createContext, createResource, useContext } from "solid-js";
-import { ThreeContext } from "./types";
+import { S3 } from "./";
+
+/**********************************************************************************/
+/*                                                                                */
+/*                                    Use Three                                   */
+/*                                                                                */
+/**********************************************************************************/
+
+export const threeContext = createContext<S3.Context>(null!);
 
 /**
  * Custom hook to access all necessary Three.js objects needed to manage a 3D scene.
  * This hook must be used within a component that is a descendant of the `<Canvas/>` component.
  *
  * @template T The expected return type after applying the callback to the context.
- * @param {Function} [callback] - Optional callback function that processes and returns a part of the context.
- * @returns {ThreeContext | Accessor<T>} Returns the ThreeContext directly, or an accessor if a callback is provided.
- * @throws {Error} Throws an error if used outside of the Canvas component context.
+ * @param [callback] - Optional callback function that processes and returns a part of the context.
+ * @returns Returns `S3.Context` directly, or as a selector if a callback is provided.
+ * @throws Throws an error if used outside of the Canvas component context.
  */
-export function useThree(): ThreeContext;
-export function useThree<T>(callback: (value: ThreeContext) => T): Accessor<T>;
-export function useThree(callback?: (value: ThreeContext) => any) {
+export function useThree(): S3.Context;
+export function useThree<T>(callback: (value: S3.Context) => T): Accessor<T>;
+export function useThree(callback?: (value: S3.Context) => any) {
   const store = useContext(threeContext);
   if (!store) {
     throw new Error("S3F: Hooks can only be used within the Canvas component!");
@@ -20,17 +28,27 @@ export function useThree(callback?: (value: ThreeContext) => any) {
   if (callback) return () => callback(store);
   return store;
 }
-export const threeContext = createContext<ThreeContext>(null!);
+
+/**********************************************************************************/
+/*                                                                                */
+/*                                    Use Frame                                   */
+/*                                                                                */
+/**********************************************************************************/
+
+type FrameContext = (
+  callback: (context: S3.Context, delta: number, frame?: XRFrame) => void,
+) => void;
+export const frameContext = createContext<FrameContext>();
 
 /**
  * Hook to register a callback that will be executed on each animation frame within the `<Canvas/>` component.
  * This hook must be used within a component that is a descendant of the `<Canvas/>` component.
  *
  * @param callback - The callback function to be executed on each frame.
- * @throws {Error} Throws an error if used outside of the Canvas component context.
+ * @throws Throws an error if used outside of the Canvas component context.
  */
 export const useFrame = (
-  callback: (context: ThreeContext, delta: number, frame?: XRFrame) => void,
+  callback: (context: S3.Context, delta: number, frame?: XRFrame) => void,
 ) => {
   const addFrameListener = useContext(frameContext);
   if (!addFrameListener) {
@@ -38,10 +56,27 @@ export const useFrame = (
   }
   addFrameListener(callback);
 };
-export const frameContext =
-  createContext<
-    (callback: (context: ThreeContext, delta: number, frame?: XRFrame) => void) => void
-  >();
+
+/**********************************************************************************/
+/*                                                                                */
+/*                                   Use Loader                                   */
+/*                                                                                */
+/**********************************************************************************/
+
+type Loader<TLoaderResult = any> = {
+  load: (
+    value: string,
+    onLoad: (value: TLoaderResult) => void,
+    onProgress: (() => void) | undefined,
+    onReject: ((error: ErrorEvent) => void) | undefined,
+  ) => void | null;
+};
+type UseLoaderOverload<TLoaderArg, TLoaderResult, TArg> = TArg extends readonly TLoaderArg[]
+  ? { [K in keyof TArg]: TLoaderResult }
+  : TLoaderResult;
+type LoaderCache<T = Loader<any>> = { loader: T; resources: {} };
+
+const LOADER_CACHE = new Map<any, LoaderCache>();
 
 /**
  * Hook to create and manage a resource using a Three.js loader. It ensures that the loader is
@@ -94,17 +129,3 @@ export const useLoader = <TArg extends string | readonly string[], TLoader exten
     UseLoaderOverload<string, TLoader extends Loader<infer U> ? U : never, TArg>
   >;
 };
-type Loader<TLoaderResult = any> = {
-  load: (
-    value: string,
-    onLoad: (value: TLoaderResult) => void,
-    onProgress: (() => void) | undefined,
-    onReject: ((error: ErrorEvent) => void) | undefined,
-  ) => void | null;
-};
-type UseLoaderOverload<TLoaderArg, TLoaderResult, TArg> = TArg extends readonly TLoaderArg[]
-  ? { [K in keyof TArg]: TLoaderResult }
-  : TLoaderResult;
-
-const LOADER_CACHE = new Map<any, LoaderCache>();
-type LoaderCache<T = Loader<any>> = { loader: T; resources: {} };

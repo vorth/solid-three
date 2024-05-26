@@ -7,9 +7,9 @@ import { WebGL2RenderingContext } from "./webgl2-rendering-context";
 /**
  * Initializes a testing enviromnent for `solid-three`.
  *
- * @param {Accessor<JSX.Element>} children - An accessor for the `AugmentedElement` to render.
- * @param {Omit<CanvasProps, "children">} [props] - Optional properties to configure canvas.
- * @returns {TestApi} ThreeContext augmented with methods to unmount the scene and to wait for the next animation frame.
+ * @param children - An accessor for the `AugmentedElement` to render.
+ * @param [props] - Optional properties to configure canvas.
+ * @returns `S3.Context` augmented with methods to unmount the scene and to wait for the next animation frame.
  *
  * @example
  * const testScene = test(() => <Mesh />, { camera: position: [0,0,5] });
@@ -60,8 +60,8 @@ type TestApi = ReturnType<typeof createThree> & {
 /**
  * Canvas element tailored for testing.
  *
- * @param {CanvasProps} props
- * @returns {JSX.Element} The canvas JSX element.
+ * @param props
+ * @returns The canvas JSX element.
  *
  * @example
  * render(<TestCanvas camera={{ position: [0,0,5] }} />);
@@ -87,8 +87,8 @@ export function TestCanvas(props: CanvasProps) {
  * suitable for environments with or without a standard DOM. In non-DOM environments, it simulates
  * essential canvas properties and methods, including WebGL contexts.
  *
- * @param {object} [options] - Configuration options for the canvas.
- * @returns {HTMLCanvasElement} A canvas element with specified dimensions and stubbed if necessary.
+ * @param [options] - Configuration options for the canvas.
+ * @returns A canvas element with specified dimensions and stubbed if necessary.
  *
  * @example
  * // Create a test canvas of default size
@@ -125,9 +125,9 @@ const createTestCanvas = ({ width = 1280, height = 800 } = {}) => {
   }
 
   class WebGLRenderingContext extends WebGL2RenderingContext {}
-  // @ts-ignore
+  // @ts-expect-error
   globalThis.WebGLRenderingContext ??= WebGLRenderingContext;
-  // @ts-ignore
+  // @ts-expect-error
   globalThis.WebGL2RenderingContext ??= WebGL2RenderingContext;
 
   return canvas;

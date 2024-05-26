@@ -10,7 +10,7 @@ import {
   onMount,
 } from "solid-js";
 import { beforeAll, describe, expect, it, vi } from "vitest";
-import { AugmentedElement, T, ThreeContext, extend, useFrame, useThree } from "../../src/index";
+import { S3, T, extend, useFrame, useThree } from "../../src/index";
 import { test } from "../../src/testing";
 
 type ComponentMesh = THREE.Mesh<THREE.BoxGeometry, THREE.MeshBasicMaterial>;
@@ -46,7 +46,7 @@ class MyColor extends THREE.Color {
 
 declare global {
   module SolidThree {
-    interface ThreeElements {
+    interface Elements {
       HasObject3dMember: HasObject3dMember;
       HasObject3dMethods: HasObject3dMethods;
       MyColor: MyColor;
@@ -607,7 +607,7 @@ describe("renderer", () => {
       },
     }).gl as unknown as THREE.WebGLRenderer & { outputColorSpace: string };
 
-    expect(gl.outputColorSpace).toBe(THREE.SRGBColorSpace);
+    expect(gl.outputEncoding).toBe(sRGBEncoding);
     expect(gl.toneMapping).toBe(THREE.ACESFilmicToneMapping);
     expect(texture.encoding).toBe(sRGBEncoding);
 
@@ -667,8 +667,8 @@ describe("renderer", () => {
   it("can handle createPortal", async () => {
     const scene = new THREE.Scene();
 
-    let state: ThreeContext = null!;
-    let portalState: ThreeContext = null!;
+    let state: S3.Context = null!;
+    let portalState: S3.Context = null!;
 
     const Normal = () => {
       const three = useThree();
@@ -702,7 +702,7 @@ describe("renderer", () => {
   });
 
   it("can handle createPortal on unmounted container", async () => {
-    const [group, setGroup] = createSignal<AugmentedElement<THREE.Group> | null>(null);
+    const [group, setGroup] = createSignal<S3.Instance<THREE.Group> | null>(null);
     const [key, setKey] = createSignal(1);
 
     function Test(props: any) {

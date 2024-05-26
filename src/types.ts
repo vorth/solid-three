@@ -1,8 +1,14 @@
-import { Component, ParentProps, Setter } from "solid-js";
+import { JSX, Setter, Component as SolidComponent } from "solid-js";
 import * as THREE from "three";
 import { OrthographicCamera, PerspectiveCamera } from "three";
 import { $S3C } from "./augment";
 import { Portal, Primitive } from "./components";
+import {
+  Constructor,
+  ConstructorOverloadParameters,
+  InstanceFromConstructor,
+  Overwrite,
+} from "./type-utils";
 
 declare global {
   namespace SolidThree {
@@ -10,47 +16,29 @@ declare global {
       Primitive: typeof Primitive;
       Portal: typeof Portal;
     }
-    interface ThreeElements {}
+    interface Elements {}
   }
 }
 
-/**********************************************************************************/
-/*                                                                                */
-/*                                      Misc                                      */
-/*                                                                                */
-/**********************************************************************************/
-
-export type ThreeContext = {
-  camera: AugmentedElement<PerspectiveCamera | OrthographicCamera>;
+/** `solid-three` context. Accessible via `useThree`. */
+export type Context = {
+  camera: Instance<PerspectiveCamera | OrthographicCamera>;
   canvas: HTMLCanvasElement;
-  gl: AugmentedElement<THREE.WebGLRenderer>;
+  gl: Instance<THREE.WebGLRenderer>;
   pointer: THREE.Vector2;
   setPointer: Setter<THREE.Vector2>;
-  raycaster: AugmentedElement<THREE.Raycaster>;
+  raycaster: Instance<THREE.Raycaster>;
   render: (delta: number) => void;
   requestRender: () => void;
-  scene: AugmentedElement<THREE.Object3D>;
+  scene: Instance<THREE.Object3D>;
   xr: {
     connect: () => void;
     disconnect: () => void;
   };
 };
 
-export type Size = {
-  left: number;
-  top: number;
-  height: number;
-  width: number;
-};
-
-export type Constructor<T = any> = new (...args: any[]) => T;
-type ExtractConstructors<T> = T extends Constructor ? T : never;
-
+/** Possible camera types. */
 export type CameraType = PerspectiveCamera | OrthographicCamera;
-
-export type KeyOfOptionals<T> = keyof {
-  [K in keyof T as T extends Record<K, T[K]> ? never : K]: T[K];
-};
 
 /**********************************************************************************/
 /*                                                                                */
@@ -58,31 +46,66 @@ export type KeyOfOptionals<T> = keyof {
 /*                                                                                */
 /**********************************************************************************/
 
-export type ThreeEvent<TEvent extends WheelEvent | MouseEvent = WheelEvent | MouseEvent> = {
+/** Generic `solid-three` event. */
+export type Event<TEvent extends WheelEvent | MouseEvent = WheelEvent | MouseEvent> = {
   nativeEvent: TEvent;
   stopped: boolean;
   stopPropagation: () => void;
 };
 
+/** Event handlers for various `solid-three` events. */
 export type EventHandlers = {
-  onClick: (event: ThreeEvent<MouseEvent>) => void;
-  onDoubleClick: (event: ThreeEvent<MouseEvent>) => void;
-  onContextMenu: (event: ThreeEvent<MouseEvent>) => void;
-  onMouseDown: (event: ThreeEvent<MouseEvent>) => void;
-  onMouseEnter: (event: ThreeEvent<MouseEvent>) => void;
-  onMouseLeave: (event: ThreeEvent<MouseEvent>) => void;
-  onMouseMove: (event: ThreeEvent<MouseEvent>) => void;
-  onMouseUp: (event: ThreeEvent<MouseEvent>) => void;
-  onPointerUp: (event: ThreeEvent<MouseEvent>) => void;
-  onPointerDown: (event: ThreeEvent<MouseEvent>) => void;
-  onPointerMove: (event: ThreeEvent<MouseEvent>) => void;
-  onPointerEnter: (event: ThreeEvent<MouseEvent>) => void;
-  onPointerLeave: (event: ThreeEvent<MouseEvent>) => void;
-  onPointerMissed: (event: ThreeEvent<MouseEvent>) => void;
-  onWheel: (event: ThreeEvent<WheelEvent>) => void;
+  onClick: (event: Event<MouseEvent>) => void;
+  onDoubleClick: (event: Event<MouseEvent>) => void;
+  onContextMenu: (event: Event<MouseEvent>) => void;
+  onMouseDown: (event: Event<MouseEvent>) => void;
+  onMouseEnter: (event: Event<MouseEvent>) => void;
+  onMouseLeave: (event: Event<MouseEvent>) => void;
+  onMouseMove: (event: Event<MouseEvent>) => void;
+  onMouseUp: (event: Event<MouseEvent>) => void;
+  onPointerUp: (event: Event<MouseEvent>) => void;
+  onPointerDown: (event: Event<MouseEvent>) => void;
+  onPointerMove: (event: Event<MouseEvent>) => void;
+  onPointerEnter: (event: Event<MouseEvent>) => void;
+  onPointerLeave: (event: Event<MouseEvent>) => void;
+  onPointerMissed: (event: Event<MouseEvent>) => void;
+  onWheel: (event: Event<WheelEvent>) => void;
 };
 
-export type EventType = keyof EventHandlers;
+/** The names of all `SolidThreeEventHandlers` */
+export type EventName = keyof EventHandlers;
+
+/**********************************************************************************/
+/*                                                                                */
+/*                           Solid Three Representation                           */
+/*                                                                                */
+/**********************************************************************************/
+
+interface ThreeMathRepresentation {
+  set(...args: number[]): any;
+}
+interface ThreeVectorRepresentation extends ThreeMathRepresentation {
+  setScalar(s: number): any;
+}
+
+/** Map given type to `solid-three` representation. */
+type Representation<T> = T extends THREE.Color
+  ? ConstructorParameters<typeof THREE.Color> | THREE.ColorRepresentation
+  : T extends ThreeVectorRepresentation | THREE.Layers | THREE.Euler
+  ? T | Parameters<T["set"]> | number
+  : T extends ThreeMathRepresentation
+  ? T | Parameters<T["set"]>
+  : T;
+
+export type Vector2 = Representation<THREE.Vector2>;
+export type Vector3 = Representation<THREE.Vector3>;
+export type Vector4 = Representation<THREE.Vector4>;
+export type Color = Representation<THREE.Color>;
+export type Layers = Representation<THREE.Layers>;
+export type Quaternion = Representation<THREE.Quaternion>;
+export type Euler = Representation<THREE.Euler>;
+export type Matrix3 = Representation<THREE.Matrix3>;
+export type Matrix4 = Representation<THREE.Matrix4>;
 
 /**********************************************************************************/
 /*                                                                                */
@@ -90,107 +113,46 @@ export type EventType = keyof EventHandlers;
 /*                                                                                */
 /**********************************************************************************/
 
-type ThreeConstructor = ExtractConstructors<(typeof THREE)[keyof typeof THREE]>;
-export type ThreeElement<TConstructor = ThreeConstructor> = InstanceFromConstructor<TConstructor>;
-export type AugmentedElement<TConstructor = ThreeConstructor> = ThreeElement<TConstructor> & {
-  [$S3C]: Augmentation;
-};
-export type Augmentation = { props: ThreeProps<ThreeElement>; children: Set<AugmentedElement> };
+type ExtractConstructors<T> = T extends Constructor ? T : never;
+/** All constructors within the `THREE` namespace */
+type ThreeConstructors = ExtractConstructors<(typeof THREE)[keyof typeof THREE]>;
 
-export type ThreeComponentProxy<Source> = {
-  [K in keyof Source]: ThreeComponent<Source[K]>;
+/** Generic instance of a given `Constructor`. */
+export type ThreeInstance = InstanceFromConstructor<ThreeConstructors>;
+
+/** Instance of a given constructor augmented with `S3Metadata`. Defaults to `ThreeConstructor`*/
+export type Instance<T = ThreeConstructors> = InstanceFromConstructor<T> & {
+  [$S3C]: Metadata<T>;
 };
-export type ThreeComponent<Source> = Component<ThreeProps<Source>>;
-export type ThreeProps<Source> = Partial<
-  ParentProps<
-    Omit<InstanceProps<Source>, "children" | "attach"> &
-      EventHandlers & {
-        args: Args<Source>;
-        onUpdate: (self: AugmentedElement<InstanceFromConstructor<Source>>) => void;
-        attach:
-          | string
-          | ((
-              parent: AugmentedElement<THREE.Object3D>,
-              self: AugmentedElement<InstanceFromConstructor<Source>>,
-            ) => () => void);
-      }
+
+/** Metadata of a `solid-three` instance. */
+export type Metadata<T> = {
+  props: Props<InstanceFromConstructor<T>>;
+  children: Set<Instance>;
+};
+
+/** Generic `solid-three` component. */
+export type Component<T> = SolidComponent<Props<T>>;
+
+/** Maps properties of given type to their `solid-three` representations. */
+type MapToRepresentation<T> = {
+  [TKey in keyof T]: Representation<T[TKey]>;
+};
+
+/** Generic `solid-three` props of a given type. */
+export type Props<T> = Partial<
+  Overwrite<
+    MapToRepresentation<InstanceFromConstructor<T>>,
+    {
+      args: T extends Constructor ? ConstructorOverloadParameters<T> : unknown;
+      attach:
+        | string
+        | ((
+            parent: Instance<THREE.Object3D>,
+            self: Instance<InstanceFromConstructor<T>>,
+          ) => () => void);
+      children?: JSX.Element;
+      onUpdate: (self: Instance<InstanceFromConstructor<T>>) => void;
+    } & EventHandlers
   >
->;
-type InstanceProps<Source> = WithMapProps<InstanceFromConstructor<Source>>;
-type Args<T> = T extends new (...args: any[]) => any ? AllConstructorParameters<T> : any[];
-
-export type InstanceFromConstructor<TConstructor> = TConstructor extends new (
-  ...args: any[]
-) => infer TObject
-  ? TObject
-  : TConstructor;
-
-// Map `three` instance properties to `solid-three` component props
-type WithMapProps<T> = {
-  [TKey in keyof T]: T[TKey] extends MathRepresentation | THREE.Euler ? MathType<T[TKey]> : T[TKey];
-};
-type MathType<T extends MathRepresentation | THREE.Euler> = T extends THREE.Color
-  ? ConstructorParameters<typeof THREE.Color> | THREE.ColorRepresentation
-  : T extends VectorRepresentation | THREE.Layers | THREE.Euler
-  ? T | Parameters<T["set"]> | number
-  : T | Parameters<T["set"]>;
-interface MathRepresentation {
-  set(...args: number[]): any;
-}
-interface VectorRepresentation extends MathRepresentation {
-  setScalar(s: number): any;
-}
-
-type ExcludeUnknown<T> = T extends Array<infer I> ? ({} extends I & {} ? never : T) : T;
-type AllConstructorParameters<T> = ExcludeUnknown<
-  T extends {
-    new (...o: infer U): void;
-    new (...o: infer U2): void;
-    new (...o: infer U3): void;
-    new (...o: infer U4): void;
-    new (...o: infer U5): void;
-    new (...o: infer U6): void;
-    new (...o: infer U7): void;
-  }
-    ? U | U2 | U3 | U4 | U5 | U6 | U7
-    : T extends {
-        new (...o: infer U): void;
-        new (...o: infer U2): void;
-        new (...o: infer U3): void;
-        new (...o: infer U4): void;
-        new (...o: infer U5): void;
-        new (...o: infer U6): void;
-      }
-    ? U | U2 | U3 | U4 | U5 | U6
-    : T extends {
-        new (...o: infer U): void;
-        new (...o: infer U2): void;
-        new (...o: infer U3): void;
-        new (...o: infer U4): void;
-        new (...o: infer U5): void;
-      }
-    ? U | U2 | U3 | U4 | U5
-    : T extends {
-        new (...o: infer U): void;
-        new (...o: infer U2): void;
-        new (...o: infer U3): void;
-        new (...o: infer U4): void;
-      }
-    ? U | U2 | U3 | U4
-    : T extends {
-        new (...o: infer U): void;
-        new (...o: infer U2): void;
-        new (...o: infer U3): void;
-      }
-    ? U | U2 | U3
-    : T extends {
-        new (...o: infer U): void;
-        new (...o: infer U2): void;
-      }
-    ? U | U2
-    : T extends {
-        new (...o: infer U): void;
-      }
-    ? U
-    : never
 >;

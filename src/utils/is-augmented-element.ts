@@ -1,5 +1,5 @@
+import { S3 } from "../";
 import { $S3C } from "../augment";
-import { AugmentedElement } from "../types";
 
-export const isAugmentedElement = (element: any): element is AugmentedElement =>
+export const isAugmentedElement = (element: any): element is S3.Instance =>
   typeof element === "object" && $S3C in element;

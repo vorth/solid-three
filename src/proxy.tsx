@@ -1,9 +1,10 @@
-import { Component, createMemo, JSX, mergeProps } from "solid-js";
+import { createMemo, JSX, mergeProps } from "solid-js";
 import type * as THREE from "three";
+import { S3 } from ".";
 import { augment } from "./augment";
 import { Portal, Primitive } from "./components";
 import { manageProps } from "./props";
-import { Constructor, ThreeComponent, ThreeComponentProxy } from "./types";
+import { Constructor } from "./type-utils";
 
 /**********************************************************************************/
 /*                                                                                */
@@ -27,12 +28,12 @@ const COMPONENTS: SolidThree.Components = {
 /**
  * Extends the global CATALOGUE with additional objects.
  *
- * @param {Record<string, Constructor>} objects - The objects to add to the catalogue.
+ * @param objects - The objects to add to the catalogue.
  */
 export const extend = (
   objects: Partial<
     | {
-        [TKey in keyof SolidThree.ThreeElements]: Constructor<SolidThree.ThreeElements[TKey]>;
+        [TKey in keyof SolidThree.Elements]: Constructor<SolidThree.Elements[TKey]>;
       }
     | typeof THREE
   >,
@@ -47,14 +48,19 @@ export const extend = (
 /**
  * Cache for storing initialized components.
  */
-const T_CACHE = new Map<string, Component<any>>(Object.entries(COMPONENTS));
+const T_CACHE = new Map<string, S3.Component<any>>(Object.entries(COMPONENTS));
+
+/** Map given type to `S3.Component` */
+type MapToS3Components<Source> = {
+  [K in keyof Source]: S3.Component<Source[K]>;
+};
 
 /**
  * A proxy that provides on-demand creation and caching of `solid-three` components.
  * It represents a dynamic layer over the predefined components and any added through extend function.
  */
 export const T = new Proxy<
-  ThreeComponentProxy<typeof THREE & SolidThree.ThreeElements> & SolidThree.Components
+  MapToS3Components<typeof THREE & SolidThree.Elements> & SolidThree.Components
 >({} as any, {
   get: (_, name: string) => {
     /* Create and memoize a wrapper component for the specified property. */
@@ -77,13 +83,13 @@ export const T = new Proxy<
  * Creates a ThreeComponent instance for a given source constructor.
  *
  * @template TSource The source constructor type.
- * @param {TSource} source - The constructor from which the component will be created.
- * @returns {ThreeComponent<TSource>} The created component.
+ * @param source - The constructor from which the component will be created.
+ * @returns The created component.
  */
 function createThreeComponent<TSource>(
   source: TSource,
-): ThreeComponent<TSource | SolidThree.ThreeElements> {
-  const Component = (props: any) => {
+): S3.Component<TSource | SolidThree.Elements> {
+  return (props: any) => {
     const merged = mergeProps({ args: [] }, props);
     const memo = createMemo(() => {
       try {
@@ -96,6 +102,4 @@ function createThreeComponent<TSource>(
     manageProps(memo, props);
     return memo as unknown as JSX.Element;
   };
-
-  return Component;
 }

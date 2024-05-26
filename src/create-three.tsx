@@ -22,13 +22,13 @@ import {
   Vector2,
   WebGLRenderer,
 } from "three";
+import { S3 } from "./";
 import { augment } from "./augment";
 import { CanvasProps } from "./canvas";
 import { createEvents } from "./create-events";
 import { frameContext, threeContext } from "./hooks";
 import { canvasPropsContext, eventContext } from "./internal-context";
 import { manageProps, manageSceneGraph } from "./props";
-import { AugmentedElement, ThreeContext } from "./types";
 import { defaultProps } from "./utils/default-props";
 import { removeElementFromArray } from "./utils/remove-element-from-array";
 import { withMultiContexts } from "./utils/with-context";
@@ -38,19 +38,19 @@ import { withMultiContexts } from "./utils/with-context";
  * camera, renderer, raycaster, and scene, manages the scene graph, setups up an event system
  * and rendering loop based on the provided properties.
  *
- * @param {HTMLCanvasElement} canvas - The HTML canvas element on which Three.js will render.
- * @param {CanvasProps} props - Configuration properties.
- * @returns - a `ThreeContext` with additional properties including eventRegistry and addFrameListener.
+ * @param canvas - The HTML canvas element on which Three.js will render.
+ * @param props - Configuration properties.
+ * @returns - an `S3.Context` with additional properties including eventRegistry and addFrameListener.
  */
 export function createThree(canvas: HTMLCanvasElement, props: CanvasProps) {
   const canvasProps = defaultProps(props, { frameloop: "always" });
 
   const [pointer, setPointer] = createSignal(new Vector2(), { equals: false });
-  const frameListeners: ((context: ThreeContext, delta: number, frame?: XRFrame) => void)[] = [];
+  const frameListeners: ((context: S3.Context, delta: number, frame?: XRFrame) => void)[] = [];
 
   // Adds a callback to be called on each frame
   const addFrameListener = (
-    callback: (context: ThreeContext, delta: number, frame?: XRFrame) => void,
+    callback: (context: S3.Context, delta: number, frame?: XRFrame) => void,
   ) => {
     frameListeners.push(callback);
     const cleanup = () => removeElementFromArray(frameListeners, callback);
@@ -97,7 +97,7 @@ export function createThree(canvas: HTMLCanvasElement, props: CanvasProps) {
   };
 
   // Compose three-context
-  const context: ThreeContext = {
+  const context: S3.Context = {
     canvas,
     // Add core elements
     get camera() {
@@ -109,6 +109,7 @@ export function createThree(canvas: HTMLCanvasElement, props: CanvasProps) {
     get raycaster() {
       return raycaster();
     },
+    // @ts-expect-error fix error
     get scene() {
       return scene();
     },
@@ -148,7 +149,7 @@ export function createThree(canvas: HTMLCanvasElement, props: CanvasProps) {
           [canvasPropsContext, canvasProps],
         ],
       ),
-    ) as unknown as Accessor<AugmentedElement[]>,
+    ) as unknown as Accessor<S3.Instance[]>,
   );
 
   // Render-loop
@@ -172,8 +173,8 @@ export function createThree(canvas: HTMLCanvasElement, props: CanvasProps) {
  * essential elements like the camera, scene, raycaster, and WebGL renderer that are required
  * to setup a fully functional `solid-three` environment.
  *
- * @param {HTMLCanvasElement} canvas - The HTML canvas element to be used for the WebGL renderer.
- * @param {CanvasProps} props - Configuration properties that define specifics such as camera type,
+ * @param canvas - The HTML canvas element to be used for the WebGL renderer.
+ * @param props - Configuration properties that define specifics such as camera type,
  *                              scene configuration, raycaster parameters, and renderer options.
  * @returns - Returns objects providing reactive access to the camera, WebGL renderer, raycaster,
  *            and scene, allowing these elements to be integrated into the Solid.js reactive system.
@@ -232,12 +233,12 @@ const createCoreElements = (canvas: HTMLCanvasElement, props: CanvasProps) => ({
  * these components dynamically as their configurations change. It handles details like shadow mapping,
  * color management, and tone mapping to align with the provided properties.
  *
- * @param {CanvasProps} props - The properties containing configuration updates for the camera,
+ * @param props - The properties containing configuration updates for the camera,
  *                              scene, renderer, and other related settings.
- * @param {ThreeContext} context - The current Three.js context that contains the core elements
+ * @param context - The current Three.js context that contains the core elements
  *                                 (camera, scene, raycaster, renderer) which will be managed.
  */
-export const manageCoreElements = (props: CanvasProps, context: ThreeContext) => {
+export const manageCoreElements = (props: CanvasProps, context: S3.Context) => {
   // Manage context.camera
   createRenderEffect(() => {
     if (!props.camera || props.camera instanceof Camera) return;
