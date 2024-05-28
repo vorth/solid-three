@@ -1,6 +1,6 @@
 import {
-  Accessor,
   children,
+  createEffect,
   createMemo,
   createRenderEffect,
   createSignal,
@@ -26,9 +26,11 @@ import { S3 } from "./";
 import { augment } from "./augment";
 import { CanvasProps } from "./canvas";
 import { createEvents } from "./create-events";
+import { AugmentedStack } from "./data-structure/augmented-stack";
 import { frameContext, threeContext } from "./hooks";
 import { canvasPropsContext, eventContext } from "./internal-context";
 import { manageProps, manageSceneGraph } from "./props";
+import { Context } from "./types";
 import { defaultProps } from "./utils/default-props";
 import { removeElementFromArray } from "./utils/remove-element-from-array";
 import { withMultiContexts } from "./utils/with-context";
@@ -45,21 +47,28 @@ import { withMultiContexts } from "./utils/with-context";
 export function createThree(canvas: HTMLCanvasElement, props: CanvasProps) {
   const canvasProps = defaultProps(props, { frameloop: "always" });
 
-  const [pointer, setPointer] = createSignal(new Vector2(), { equals: false });
-  const frameListeners: ((context: S3.Context, delta: number, frame?: XRFrame) => void)[] = [];
+  /**********************************************************************************/
+  /*                                                                                */
+  /*                                 Frame Listeners                                */
+  /*                                                                                */
+  /**********************************************************************************/
 
+  type FrameListener = (context: S3.Context, delta: number, frame?: XRFrame) => void;
+
+  const frameListeners: FrameListener[] = [];
   // Adds a callback to be called on each frame
-  const addFrameListener = (
-    callback: (context: S3.Context, delta: number, frame?: XRFrame) => void,
-  ) => {
+  function addFrameListener(callback: FrameListener) {
     frameListeners.push(callback);
     const cleanup = () => removeElementFromArray(frameListeners, callback);
     onCleanup(cleanup);
     return cleanup;
-  };
+  }
 
-  // Create core elements
-  const { camera, gl, raycaster, scene } = createCoreElements(canvas, canvasProps);
+  /**********************************************************************************/
+  /*                                                                                */
+  /*                                        XR                                      */
+  /*                                                                                */
+  /**********************************************************************************/
 
   // Handle frame behavior in WebXR
   const handleXRFrame: XRFrameRequestCallback = (timestamp: number, frame?: XRFrame) => {
@@ -67,10 +76,10 @@ export function createThree(canvas: HTMLCanvasElement, props: CanvasProps) {
     render(timestamp, frame);
   };
   // Toggle render switching on session
-  const handleSessionChange = () => {
+  function handleSessionChange() {
     context.gl.xr.enabled = context.gl.xr.isPresenting;
     context.gl.xr.setAnimationLoop(context.gl.xr.isPresenting ? handleXRFrame : null);
-  };
+  }
   // WebXR session-manager
   const xr = {
     connect() {
@@ -83,37 +92,38 @@ export function createThree(canvas: HTMLCanvasElement, props: CanvasProps) {
     },
   };
 
-  // Render-functions
+  /**********************************************************************************/
+  /*                                                                                */
+  /*                                     Render                                     */
+  /*                                                                                */
+  /**********************************************************************************/
+
   let isRenderPending = false;
-  const render = (timestamp: number, frame?: XRFrame) => {
+  function render(timestamp: number, frame?: XRFrame) {
     isRenderPending = false;
     context.gl.render(context.scene, context.camera);
     frameListeners.forEach(listener => listener(context, timestamp, frame));
-  };
-  const requestRender = () => {
+  }
+  function requestRender() {
     if (isRenderPending) return;
     isRenderPending = true;
     requestAnimationFrame(render);
-  };
+  }
 
-  // Compose three-context
-  const context: S3.Context = {
+  /**********************************************************************************/
+  /*                                                                                */
+  /*                                  Three Context                                 */
+  /*                                                                                */
+  /**********************************************************************************/
+
+  const [pointer, setPointer] = createSignal(new Vector2(), { equals: false });
+  const cameraStack = new AugmentedStack<S3.CameraType>("camera");
+  const sceneStack = new AugmentedStack<Scene>("scene");
+  const raycasterStack = new AugmentedStack<Raycaster>("raycaster");
+  const glStack = new AugmentedStack<WebGLRenderer>("gl");
+
+  const context: Context = {
     canvas,
-    // Add core elements
-    get camera() {
-      return camera();
-    },
-    get gl() {
-      return gl();
-    },
-    get raycaster() {
-      return raycaster();
-    },
-    // @ts-expect-error fix error
-    get scene() {
-      return scene();
-    },
-    // Current normalized, centric pointer coordinates
     get pointer() {
       return pointer();
     },
@@ -121,57 +131,172 @@ export function createThree(canvas: HTMLCanvasElement, props: CanvasProps) {
     render,
     requestRender,
     xr,
+    // elements
+    get camera() {
+      return cameraStack.peek()!;
+    },
+    setCamera: cameraStack.push.bind(cameraStack),
+    get scene() {
+      return sceneStack.peek()!;
+    },
+    setScene: sceneStack.push.bind(sceneStack),
+    get raycaster() {
+      return raycasterStack.peek()!;
+    },
+    setRaycaster: raycasterStack.push.bind(raycasterStack),
+    get gl() {
+      return glStack.peek()!;
+    },
+    setGl: glStack.push.bind(glStack),
   };
 
-  // Manage core elements
-  withMultiContexts(
-    () => manageCoreElements(canvasProps, context),
-    [
-      [threeContext, context],
-      [canvasPropsContext, canvasProps],
-    ],
-  );
+  initializeContext(context, canvasProps);
+
+  /**********************************************************************************/
+  /*                                                                                */
+  /*                                     Events                                     */
+  /*                                                                                */
+  /**********************************************************************************/
 
   // Initialize event-system
   const { addEventListener, eventRegistry } = createEvents(context);
 
-  // Manage scene-graph
+  /**********************************************************************************/
+  /*                                                                                */
+  /*                                   Scene Graph                                  */
+  /*                                                                                */
+  /**********************************************************************************/
+
   manageSceneGraph(
     context.scene,
-    children(
+    children(() =>
       withMultiContexts(
         () => canvasProps.children,
         [
-          // Dependency Injection
+          // Dependency injection of all the contexts.
           [threeContext, context],
           [frameContext, addFrameListener],
           [eventContext, addEventListener],
           [canvasPropsContext, canvasProps],
         ],
       ),
-    ) as unknown as Accessor<S3.Instance[]>,
+    ) as any,
   );
 
-  // Render-loop
-  const loop = (value: number) => {
+  /**********************************************************************************/
+  /*                                                                                */
+  /*                                   Render Loop                                  */
+  /*                                                                                */
+  /**********************************************************************************/
+
+  function loop(value: number) {
     if (canvasProps.frameloop === "always") {
       requestAnimationFrame(loop);
       context.render(value);
     }
-  };
+  }
   createRenderEffect(() => {
     if (canvasProps.frameloop === "always") {
       requestAnimationFrame(loop);
     }
   });
 
+  // Return context merged with `eventRegistry` and `addFrameListeners``
+  // This is used in `@solid-three/testing`
   return mergeProps(context, { eventRegistry, addFrameListener });
 }
 
+function initializeContext(context: S3.Context, props: CanvasProps) {
+  withMultiContexts(() => {
+    const { camera, scene, gl, raycaster } = createDefaultElements(context, props);
+    // Set default elements to context
+    context.setGl(gl);
+    context.setCamera(camera);
+    context.setScene(scene);
+    context.setRaycaster(raycaster);
+
+    // Manage camera
+    createRenderEffect(() => {
+      if (!props.camera || props.camera instanceof Camera) return;
+      manageProps(camera, props.camera);
+      // NOTE:  Manually update camera's matrix with updateMatrixWorld is needed.
+      //        Otherwise casting a ray immediately after start-up will cause the incorrect matrix to be used.
+      camera().updateMatrixWorld(true);
+    });
+
+    // Manage scene
+    createRenderEffect(() => {
+      if (!props.scene || props.scene instanceof Scene) return;
+      manageProps(scene, props.scene);
+    });
+
+    // Manage raycaster
+    createRenderEffect(() => {
+      if (!props.raycaster || props.raycaster instanceof Raycaster) return;
+      manageProps(raycaster, props.raycaster);
+    });
+
+    // Manage gl
+    createRenderEffect(() => {
+      // Set shadow-map
+      createRenderEffect(() => {
+        const _gl = gl();
+        if (_gl.shadowMap) {
+          const oldEnabled = _gl.shadowMap.enabled;
+          const oldType = _gl.shadowMap.type;
+          _gl.shadowMap.enabled = !!props.shadows;
+
+          if (typeof props.shadows === "boolean") {
+            _gl.shadowMap.type = PCFSoftShadowMap;
+          } else if (typeof props.shadows === "string") {
+            const types = {
+              basic: BasicShadowMap,
+              percentage: PCFShadowMap,
+              soft: PCFSoftShadowMap,
+              variance: VSMShadowMap,
+            };
+            _gl.shadowMap.type = types[props.shadows] ?? PCFSoftShadowMap;
+          } else if (typeof props.shadows === "object") {
+            Object.assign(_gl.shadowMap, props.shadows);
+          }
+
+          if (oldEnabled !== _gl.shadowMap.enabled || oldType !== _gl.shadowMap.type)
+            _gl.shadowMap.needsUpdate = true;
+        }
+      });
+
+      createEffect(() => {
+        const renderer = gl();
+        // Connect to xr if property exists
+        if (renderer.xr) context.xr.connect();
+      });
+
+      // Set color space and tonemapping preferences
+      const LinearEncoding = 3000;
+      const sRGBEncoding = 3001;
+      // Color management and tone-mapping
+      manageProps(gl, {
+        get outputEncoding() {
+          return props.linear ? LinearEncoding : sRGBEncoding;
+        },
+        get toneMapping() {
+          return props.flat ? NoToneMapping : ACESFilmicToneMapping;
+        },
+      });
+
+      // Manage props
+      if (props.gl && !(props.gl instanceof WebGLRenderer)) {
+        manageProps(gl, props.gl);
+      }
+    });
+  }, [
+    [threeContext, context],
+    [canvasPropsContext, props],
+  ]);
+}
+
 /**
- * Initializes the core components of a `solid-three` rendering context. This function creates
- * essential elements like the camera, scene, raycaster, and WebGL renderer that are required
- * to setup a fully functional `solid-three` environment.
+ * Creates the default elements of the `solid-three` context.
  *
  * @param canvas - The HTML canvas element to be used for the WebGL renderer.
  * @param props - Configuration properties that define specifics such as camera type,
@@ -179,127 +304,52 @@ export function createThree(canvas: HTMLCanvasElement, props: CanvasProps) {
  * @returns - Returns objects providing reactive access to the camera, WebGL renderer, raycaster,
  *            and scene, allowing these elements to be integrated into the Solid.js reactive system.
  */
-const createCoreElements = (canvas: HTMLCanvasElement, props: CanvasProps) => ({
-  camera: createMemo(() =>
-    augment(
-      props.camera instanceof Camera
-        ? (props.camera as OrthographicCamera | PerspectiveCamera)
-        : props.orthographic
-        ? new OrthographicCamera()
-        : new PerspectiveCamera(),
-      {
-        get props() {
-          return props.camera || {};
+function createDefaultElements(context: S3.Context, props: CanvasProps) {
+  return {
+    camera: createMemo(() =>
+      augment(
+        props.camera instanceof Camera
+          ? (props.camera as OrthographicCamera | PerspectiveCamera)
+          : props.orthographic
+          ? new OrthographicCamera()
+          : new PerspectiveCamera(),
+        {
+          get props() {
+            return props.camera || {};
+          },
         },
-      },
+      ),
     ),
-  ),
-  scene: createMemo(() =>
-    augment(props.scene instanceof Scene ? props.scene : new Scene(), {
-      get props() {
-        return props.scene || {};
-      },
-    }),
-  ),
-  raycaster: createMemo(() =>
-    augment(props.raycaster instanceof Raycaster ? props.raycaster : new Raycaster(), {
-      get props() {
-        return props.raycaster || {};
-      },
-    }),
-  ),
-  gl: createMemo(() =>
-    augment(
-      props.gl instanceof WebGLRenderer
-        ? // props.gl can be a WebGLRenderer provided by the user
-          props.gl
-        : typeof props.gl === "function"
-        ? // or a callback that returns a Renderer
-          props.gl(canvas)
-        : // if props.gl is not defined we default to a WebGLRenderer
-          new WebGLRenderer({ canvas }),
-      {
+    scene: createMemo(() =>
+      augment(props.scene instanceof Scene ? props.scene : new Scene(), {
         get props() {
-          return props.gl || {};
+          return props.scene || {};
         },
-      },
+      }),
     ),
-  ),
-});
-
-/**
- * Manages and updates the properties of core Three.js components such as the camera, scene, and
- * WebGL renderer based on external properties. This function applies reactive effects to update
- * these components dynamically as their configurations change. It handles details like shadow mapping,
- * color management, and tone mapping to align with the provided properties.
- *
- * @param props - The properties containing configuration updates for the camera,
- *                              scene, renderer, and other related settings.
- * @param context - The current Three.js context that contains the core elements
- *                                 (camera, scene, raycaster, renderer) which will be managed.
- */
-export const manageCoreElements = (props: CanvasProps, context: S3.Context) => {
-  // Manage context.camera
-  createRenderEffect(() => {
-    if (!props.camera || props.camera instanceof Camera) return;
-    manageProps(() => context.camera, props.camera);
-    // NOTE:  Manually update camera's matrix with updateMatrixWorld is needed.
-    //        Otherwise casting a ray immediately after start-up will cause the incorrect matrix to be used.
-    context.camera.updateMatrixWorld(true);
-  });
-  // Manage context.scene
-  createRenderEffect(() => {
-    if (!props.scene || props.scene instanceof Scene) return;
-    manageProps(() => context.scene, props.scene);
-  });
-  // Manage context.gl
-  createRenderEffect(() => {
-    // Set shadow-map
-    createRenderEffect(() => {
-      if (context.gl.shadowMap) {
-        const oldEnabled = context.gl.shadowMap.enabled;
-        const oldType = context.gl.shadowMap.type;
-        context.gl.shadowMap.enabled = !!props.shadows;
-
-        if (typeof props.shadows === "boolean") {
-          context.gl.shadowMap.type = PCFSoftShadowMap;
-        } else if (typeof props.shadows === "string") {
-          const types = {
-            basic: BasicShadowMap,
-            percentage: PCFShadowMap,
-            soft: PCFSoftShadowMap,
-            variance: VSMShadowMap,
-          };
-          context.gl.shadowMap.type = types[props.shadows] ?? PCFSoftShadowMap;
-        } else if (typeof props.shadows === "object") {
-          Object.assign(context.gl.shadowMap, props.shadows);
-        }
-
-        if (oldEnabled !== context.gl.shadowMap.enabled || oldType !== context.gl.shadowMap.type)
-          context.gl.shadowMap.needsUpdate = true;
-      }
-    });
-    // Set color space and tonemapping preferences
-    const LinearEncoding = 3000;
-    const sRGBEncoding = 3001;
-    // Color management and tone-mapping
-    manageProps(() => context.gl, {
-      get outputEncoding() {
-        return props.linear ? LinearEncoding : sRGBEncoding;
-      },
-      get toneMapping() {
-        return props.flat ? NoToneMapping : ACESFilmicToneMapping;
-      },
-    });
-    // Connect to xr if property exists
-    if (context.gl.xr) context.xr.connect();
-    // Manage props
-    if (!props.gl || props.gl instanceof WebGLRenderer) return;
-    manageProps(() => context.gl, props.gl);
-  });
-  // Manage context.raycaster
-  createRenderEffect(() => {
-    if (!props.raycaster || props.raycaster instanceof Raycaster) return;
-    manageProps(() => context.raycaster, props.raycaster);
-  });
-};
+    raycaster: createMemo(() =>
+      augment(props.raycaster instanceof Raycaster ? props.raycaster : new Raycaster(), {
+        get props() {
+          return props.raycaster || {};
+        },
+      }),
+    ),
+    gl: createMemo(() =>
+      augment(
+        props.gl instanceof WebGLRenderer
+          ? // props.gl can be a WebGLRenderer provided by the user
+            props.gl
+          : typeof props.gl === "function"
+          ? // or a callback that returns a Renderer
+            props.gl(context.canvas)
+          : // if props.gl is not defined we default to a WebGLRenderer
+            new WebGLRenderer({ canvas: context.canvas }),
+        {
+          get props() {
+            return props.gl || {};
+          },
+        },
+      ),
+    ),
+  };
+}

@@ -30,8 +30,7 @@ export const Portal = (props: PortalProps) => {
   });
 
   createRenderEffect(() => {
-    manageSceneGraph(
-      scene(),
+    manageSceneGraph(scene(), () =>
       withContext(
         () => props.children as unknown as S3.Instance | S3.Instance[],
         threeContext,
@@ -43,10 +42,11 @@ export const Portal = (props: PortalProps) => {
       ),
     );
   });
-  return <></>;
+
+  return null;
 };
 
-type PrimitiveProps<T> = Omit<S3.Props<T>, "object" | "children" | "ref" | "args"> & {
+type PrimitiveProps<T> = Omit<S3.ClassProps<T>, "object" | "children" | "ref" | "args"> & {
   object: T;
   children?: JSX.Element;
   ref?: T | ((value: T) => void);

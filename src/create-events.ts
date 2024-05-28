@@ -167,7 +167,7 @@ export const createEvents = (context: S3.Context) => {
     (nativeEvent: TEvent) => {
       const event = createThreeEvent(nativeEvent);
       for (const { object } of raycast(nativeEvent, type)) {
-        object[$S3C].props[type]?.(event);
+        object[$S3C].props?.[type]?.(event);
         bubbleDown(object, type, event);
         if (event.stopped) break;
       }
@@ -183,7 +183,7 @@ export const createEvents = (context: S3.Context) => {
   context.canvas.addEventListener("mouseup", createEventHandler("onMouseUp"));
   context.canvas.addEventListener("pointerup", createEventHandler("onPointerUp"));
 
-  context.canvas.addEventListener("wheel", createEventHandler("onWheel"));
+  context.canvas.addEventListener("wheel", createEventHandler("onWheel"), { passive: true });
   context.canvas.addEventListener("click", createEventHandler("onClick"));
   context.canvas.addEventListener("dblclick", createEventHandler("onDoubleClick"));
 

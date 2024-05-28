@@ -40,7 +40,7 @@ export function withContext<T, TResult>(
     }) as any as JSX.Element,
   });
 
-  return () => result;
+  return result!;
 }
 
 /*
@@ -75,24 +75,18 @@ export function withMultiContexts<TResult, T extends readonly [unknown?, ...unkn
     [K in keyof T]: readonly [Context<T[K]>, [T[K]][T extends unknown ? 0 : never]];
   },
 ) {
-  let result: JSX.Element | JSX.Element[];
+  let result: TResult;
 
-  const fn = (index: number) => {
-    const [context, value] = values[index]!;
-    context.Provider({
-      value,
-      children: (() => {
-        if (index < values.length - 1) {
-          fn(index + 1);
-        } else {
-          result = children();
-        }
-        return "";
-      }) as any as JSX.Element,
-    });
-  };
+  (values as [Context<any>, any]).reduce((acc, [context, value], index) => {
+    return () =>
+      context.Provider({
+        value,
+        children: () => {
+          if (index === 0) result = acc();
+          else acc();
+        },
+      });
+  }, children)();
 
-  fn(0);
-
-  return () => result;
+  return result!;
 }

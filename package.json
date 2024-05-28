@@ -91,7 +91,6 @@
   "dependencies": {
     "@solid-primitives/resize-observer": "^2.0.25"
   },
-  "packageManager": "pnpm@7.26.0",
   "browser": {},
   "typesVersions": {
     "*": {

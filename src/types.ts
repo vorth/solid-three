@@ -1,6 +1,6 @@
-import { JSX, Setter, Component as SolidComponent } from "solid-js";
-import * as THREE from "three";
-import { OrthographicCamera, PerspectiveCamera } from "three";
+import { Accessor, JSX, Setter, Component as SolidComponent } from "solid-js";
+import type * as THREE from "three";
+import { S3 } from ".";
 import { $S3C } from "./augment";
 import { Portal, Primitive } from "./components";
 import {
@@ -21,24 +21,31 @@ declare global {
 }
 
 /** `solid-three` context. Accessible via `useThree`. */
-export type Context = {
-  camera: Instance<PerspectiveCamera | OrthographicCamera>;
+export type Context = ContextElements & {
   canvas: HTMLCanvasElement;
-  gl: Instance<THREE.WebGLRenderer>;
-  pointer: THREE.Vector2;
-  setPointer: Setter<THREE.Vector2>;
-  raycaster: Instance<THREE.Raycaster>;
   render: (delta: number) => void;
   requestRender: () => void;
-  scene: Instance<THREE.Object3D>;
+  pointer: THREE.Vector2;
+  setPointer: Setter<THREE.Vector2>;
   xr: {
     connect: () => void;
     disconnect: () => void;
   };
 };
 
+type ContextElements = {
+  camera: Instance<S3.CameraType>;
+  setCamera: (camera: S3.CameraType | Accessor<S3.CameraType>) => () => void;
+  gl: Instance<THREE.WebGLRenderer>;
+  setGl: (gl: THREE.WebGLRenderer | Accessor<THREE.WebGLRenderer>) => () => void;
+  raycaster: Instance<THREE.Raycaster>;
+  setRaycaster: (raycaster: THREE.Raycaster | Accessor<THREE.Raycaster>) => () => void;
+  scene: Instance<THREE.Scene> | Instance<THREE.Object3D>;
+  setScene: (scene: THREE.Scene | Accessor<THREE.Scene>) => () => void;
+};
+
 /** Possible camera types. */
-export type CameraType = PerspectiveCamera | OrthographicCamera;
+export type CameraType = THREE.PerspectiveCamera | THREE.OrthographicCamera;
 
 /**********************************************************************************/
 /*                                                                                */
@@ -127,20 +134,20 @@ export type Instance<T = ThreeConstructors> = InstanceFromConstructor<T> & {
 
 /** Metadata of a `solid-three` instance. */
 export type Metadata<T> = {
-  props: Props<InstanceFromConstructor<T>>;
+  props?: ClassProps<InstanceFromConstructor<T>>;
   children: Set<Instance>;
 };
 
 /** Generic `solid-three` component. */
-export type Component<T> = SolidComponent<Props<T>>;
+export type Component<T> = SolidComponent<ClassProps<T>>;
 
 /** Maps properties of given type to their `solid-three` representations. */
 type MapToRepresentation<T> = {
   [TKey in keyof T]: Representation<T[TKey]>;
 };
 
-/** Generic `solid-three` props of a given type. */
-export type Props<T> = Partial<
+/** Generic `solid-three` props of a given class. */
+export type ClassProps<T> = Partial<
   Overwrite<
     MapToRepresentation<InstanceFromConstructor<T>>,
     {
@@ -156,3 +163,11 @@ export type Props<T> = Partial<
     } & EventHandlers
   >
 >;
+
+/** Generic `solid-three` props of a given type. */
+export type Props<T extends keyof typeof THREE | keyof SolidThree.Elements> =
+  T extends keyof typeof THREE
+    ? ClassProps<(typeof THREE)[T]>
+    : T extends keyof SolidThree.Elements
+    ? ClassProps<SolidThree.Elements[T]>
+    : never;

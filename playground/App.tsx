@@ -8,10 +8,11 @@ import "./index.css";
 extend(THREE);
 
 export const App: Component = () => {
+  // return "hallo";
   return (
     <Canvas camera={{ position: new Vector3(0, 0, 5) }}>
-      <T.AmbientLight color={[0.125, 0.125, 0.125]} />
-      <T.PointLight position={[2, 2, 5]} rotation={[0, Math.PI / 3, 0]} />
+      <T.AmbientLight color={[0.2, 0.2, 0.2]} />
+      <T.PointLight intensity={1.2} decay={1} position={[2, 2, 5]} rotation={[0, Math.PI / 3, 0]} />
       <Box />
     </Canvas>
   );

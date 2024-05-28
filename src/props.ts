@@ -236,7 +236,7 @@ export const applyProp = <T>(source: S3.Instance<T>, type: string, value: any) =
  * @param childAccessor - A function returning the child or children to be managed.
  */
 export const manageSceneGraph = <T>(
-  parent: S3.Instance<T>,
+  parent: T,
   childAccessor: Accessor<S3.Instance | S3.Instance[]>,
 ) => {
   createRenderEffect(
