@@ -10,6 +10,7 @@ import {
 import {
   BufferGeometry,
   Color,
+  LinearSRGBColorSpace,
   Fog,
   Layers,
   Material,
@@ -17,6 +18,7 @@ import {
   RGBAFormat,
   Texture,
   UnsignedByteType,
+  ColorManagement,
 } from "three";
 import { S3 } from "./";
 import { $S3C } from "./augment";
@@ -163,13 +165,31 @@ export const applyProp = <T>(source: S3.Instance<T>, type: string, value: any) =
   const canvasProps = useCanvasProps();
 
   try {
-    // Copy if properties match signatures
+    // Copy if properties match signatures.
     if (target?.copy && target?.constructor === value?.constructor) {
       target.copy(value);
     }
     // Layers have no copy function, we must therefore copy the mask property
     else if (target instanceof Layers && value instanceof Layers) {
       target.mask = value.mask;
+    }
+    else if ( target instanceof Color ) {
+      // value is NOT a Color (would have taken the "Copy" branch)
+      if ( Array.isArray(value) ) {
+        if ( value.length == 2 ) {
+          target .setStyle( ...value );
+        } else if ( value.length == 4 ) {
+          target .setRGB( ...value );
+        } else if ( value.length == 3 ) {
+          target .setRGB( ...value, ColorManagement.workingColorSpace );
+        } else {
+          console.error( `Color properties cannot be set from length-${value.length} arrays` );
+        }
+      } else if ( typeof value === 'string' ) {
+        target .setStyle( value, ColorManagement.workingColorSpace );
+      } else {
+        console.error( `Color properties cannot be set from values of type ${typeof value}` );
+      }
     }
     // Set array types
     else if (target?.set && Array.isArray(value)) {
@@ -179,11 +199,12 @@ export const applyProp = <T>(source: S3.Instance<T>, type: string, value: any) =
     // Set literal types, ignore undefined
     // https://github.com/pmndrs/react-three-fiber/issues/274
     else if (target?.set && typeof value !== "object") {
-      const isColor = target instanceof Color;
       // Allow setting array scalars
-      if (!isColor && target.setScalar && typeof value === "number") target.setScalar(value);
+      if ( target.setScalar && typeof value === "number" ) target.setScalar(value);
       // Otherwise just set ...
-      else if (value !== undefined) target.set(value);
+      else if (value !== undefined) {
+        target.set(value);
+      }
     }
     // Else, just overwrite the value
     else {

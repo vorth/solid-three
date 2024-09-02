@@ -8,7 +8,6 @@ import "./index.css";
 extend(THREE);
 
 export const App: Component = () => {
-  // return "hallo";
   return (
     <Canvas camera={{ position: new Vector3(0, 0, 5) }}>
       <T.AmbientLight color={[0.2, 0.2, 0.2]} />
