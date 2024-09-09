@@ -173,24 +173,6 @@ export const applyProp = <T>(source: S3.Instance<T>, type: string, value: any) =
     else if (target instanceof Layers && value instanceof Layers) {
       target.mask = value.mask;
     }
-    else if ( target instanceof Color ) {
-      // value is NOT a Color (would have taken the "Copy" branch)
-      if ( Array.isArray(value) ) {
-        if ( value.length == 2 ) {
-          target .setStyle( ...value );
-        } else if ( value.length == 4 ) {
-          target .setRGB( ...value );
-        } else if ( value.length == 3 ) {
-          target .setRGB( ...value, ColorManagement.workingColorSpace );
-        } else {
-          console.error( `Color properties cannot be set from length-${value.length} arrays` );
-        }
-      } else if ( typeof value === 'string' ) {
-        target .setStyle( value, ColorManagement.workingColorSpace );
-      } else {
-        console.error( `Color properties cannot be set from values of type ${typeof value}` );
-      }
-    }
     // Set array types
     else if (target?.set && Array.isArray(value)) {
       if (target.fromArray) target.fromArray(value);
