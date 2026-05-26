@@ -120,18 +120,18 @@ export function createThree(canvas: HTMLCanvasElement, props: CanvasProps) {
   }
   // Toggle render switching on session
   function handleSessionChange() {
-    context.gl.xr.enabled = context.gl.xr.isPresenting
-    context.gl.xr.setAnimationLoop(context.gl.xr.isPresenting ? handleXRFrame : null)
+    context.gl.xr!.enabled = context.gl.xr!.isPresenting
+    context.gl.xr!.setAnimationLoop(context.gl.xr!.isPresenting ? handleXRFrame : null)
   }
   // WebXR session-manager
   const xr = {
     connect() {
-      context.gl.xr.addEventListener("sessionstart", handleSessionChange)
-      context.gl.xr.addEventListener("sessionend", handleSessionChange)
+      context.gl.xr!.addEventListener("sessionstart", handleSessionChange)
+      context.gl.xr!.addEventListener("sessionend", handleSessionChange)
     },
     disconnect() {
-      context.gl.xr.removeEventListener("sessionstart", handleSessionChange)
-      context.gl.xr.removeEventListener("sessionend", handleSessionChange)
+      context.gl.xr!.removeEventListener("sessionstart", handleSessionChange)
+      context.gl.xr!.removeEventListener("sessionend", handleSessionChange)
     },
   }
 
@@ -142,9 +142,10 @@ export function createThree(canvas: HTMLCanvasElement, props: CanvasProps) {
   /**********************************************************************************/
 
   let pendingRenderRequest: number | undefined
+  let glInitialized = false
 
   function render(timestamp: number, frame?: XRFrame) {
-    if (!context.gl) {
+    if (!context.gl || !glInitialized) {
       return
     }
     if (props.frameloop === "never") {
@@ -208,13 +209,16 @@ export function createThree(canvas: HTMLCanvasElement, props: CanvasProps) {
 
   const gl = createMemo(() => {
     const gl =
-      props.gl instanceof WebGLRenderer
-        ? // props.gl can be a WebGLRenderer provided by the user
-          props.gl
-        : typeof props.gl === "function"
-        ? // or a callback that returns a Renderer
+      typeof props.gl === "function"
+        ? // Factory callback that returns a renderer
           props.gl(canvas)
-        : // if props.gl is not defined we default to a WebGLRenderer
+        : props.gl instanceof WebGLRenderer
+        ? // WebGLRenderer instance provided directly
+          props.gl
+        : typeof props.gl === "object" && props.gl !== null && typeof (props.gl as any).render === "function"
+        ? // Other renderer instance (e.g. WebGPURenderer) provided directly
+          (props.gl as any)
+        : // No renderer or a config-props object → create a default WebGLRenderer
           new WebGLRenderer({ canvas, alpha: true })
 
     return meta(gl, {
@@ -353,21 +357,37 @@ export function createThree(canvas: HTMLCanvasElement, props: CanvasProps) {
         if (renderer.xr) context.xr.connect()
       })
 
-      // Set color space and tonemapping preferences
-      const LinearEncoding = 3000
-      const sRGBEncoding = 3001
-      // Color management and tone-mapping
-      useProps(gl, {
-        get outputEncoding() {
-          return props.linear ? LinearEncoding : sRGBEncoding
-        },
-        get toneMapping() {
-          return props.flat ? NoToneMapping : ACESFilmicToneMapping
-        },
+      createEffect(async () => {
+        const renderer = gl()
+        glInitialized = false
+        if (typeof renderer.init === "function") {
+          await renderer.init()
+        }
+        glInitialized = true
       })
 
-      // Manage props
-      if (props.gl && !(props.gl instanceof WebGLRenderer)) {
+      // Set color space and tonemapping preferences (WebGLRenderer only)
+      const LinearEncoding = 3000
+      const sRGBEncoding = 3001
+      if (gl() instanceof WebGLRenderer) {
+        // Color management and tone-mapping
+        useProps(gl, {
+          get outputEncoding() {
+            return props.linear ? LinearEncoding : sRGBEncoding
+          },
+          get toneMapping() {
+            return props.flat ? NoToneMapping : ACESFilmicToneMapping
+          },
+        })
+      }
+
+      // Manage props — only when props.gl is a config object, not a renderer instance
+      const glIsInstance =
+        props.gl instanceof WebGLRenderer ||
+        (typeof props.gl === "object" &&
+          props.gl !== null &&
+          typeof (props.gl as any).render === "function")
+      if (props.gl && !glIsInstance) {
         useProps(gl, props.gl)
       }
     })

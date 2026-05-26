@@ -134,6 +134,31 @@ export type LoaderUrl<T extends Loader<any, any>> = T extends Loader<any, infer 
 /*                                                                                */
 /**********************************************************************************/
 
+/**
+ * Minimal interface shared by both `WebGLRenderer` and `WebGPURenderer`.
+ * Pass any renderer instance that satisfies this shape to the `gl` Canvas prop.
+ */
+export interface RendererLike {
+  render(scene: any, camera: any): void
+  setSize(width: number, height: number, updateStyle?: boolean): void
+  setPixelRatio(value: number): void
+  getPixelRatio(): number
+  xr?: {
+    isPresenting: boolean
+    enabled: boolean
+    addEventListener(type: string, listener: () => void): void
+    removeEventListener(type: string, listener: () => void): void
+    setAnimationLoop(callback: XRFrameRequestCallback | null): void
+  }
+  shadowMap?: {
+    enabled: boolean
+    type: number
+    needsUpdate: boolean
+  }
+  /** Called once by solid-three before the first render, if present (e.g. WebGPURenderer). */
+  init?(): Promise<void>
+}
+
 export interface Context {
   bounds: Measure
   canvas: HTMLCanvasElement
@@ -141,7 +166,7 @@ export interface Context {
   camera: CameraKind
   raycaster: Raycaster | EventRaycaster
   dpr: number
-  gl: Meta<WebGLRenderer>
+  gl: Meta<RendererLike>
   props: CanvasProps
   render: (delta: number) => void
   requestRender: () => void
